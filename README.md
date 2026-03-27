@@ -1,49 +1,64 @@
 # X Operator Console
 
-X Operator Console is a dark, dense operator workspace for deliberate X/Twitter account operations. It is designed for a human operator and an AI assistant to work together safely, with demo mode enabled by default and live mode gated behind server-side environment variables.
+X Operator Console is a dark, dense operator workspace for running an X/Twitter account deliberately. It is built for a human operator and an AI assistant to work together on posting, triage, approvals, profile surface updates, and diagnostics without exposing secrets or drifting into account-security settings.
 
-## Current scope
+The repo is public-safe by design:
 
-The repository currently includes:
+- demo mode is the default
+- live mode only activates from local env vars
+- secrets stay server-side
+- seeded data is generic
+- runtime data is ignored by Git
 
-- Next.js + TypeScript + Tailwind foundation
-- dark mission-control dashboard shell
-- server-only mode resolution for `demo` vs `live`
-- seeded mock snapshot data for queue, watchlist, activity, profile, and analytics
-- server-side auth abstraction for OAuth 1.0a, OAuth 2.0 user tokens, bearer token, and client credentials
-- capability diagnostics page with sanitized probe results
-- internal X client service for demo/live operations, structured logs, and normalized errors
-- feed and mentions operator pages with persistent local triage labels
-- compose and queue workflows with thread-capable draft storage
-- policy-driven approval workflows with presets, overrides, and sanitized execution logs
-- profile surface editor with revision history and approval-aware apply flow
-- public-repo hygiene files and setup guidance
+## What It Is
 
-No real credentials, handles, watchlists, or logs are committed.
+This is not a consumer scheduler or a social-media SaaS clone.
 
-## Stack
+It is an operator console with a mission-control feel:
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- single-account-first architecture
-- demo-first runtime with server-side live capability detection
+- dense feed and mentions review
+- draft, queue, and approval workflows
+- profile surface management
+- auth and capability diagnostics
+- action logs and basic analytics
+- browser-fallback-ready execution architecture for future Playwright integration
 
-## Getting started
+## Features
 
-1. Install dependencies:
+- Demo-first Next.js app with dark operator UI
+- Server-only auth abstraction for OAuth 1.0a, OAuth 2.0 user tokens, bearer token, and client credentials
+- Capability diagnostics with real probe results and sanitized errors
+- Internal X client abstraction for reads, posting, engagement actions, profile mutations, and capability checks
+- Feed and mentions pages with triage labels, quick actions, and watchlist hooks
+- Compose and queue flows for posts, replies, quotes, and threads
+- Approval policies with presets, overrides, and review queue
+- Profile surface editor with revision history and approval-aware apply flow
+- Structured sanitized logs and starter analytics
+- Browser fallback settings and execution architecture placeholder
+
+## Screenshots
+
+Static placeholders are included so the repo reads cleanly on GitHub before real demo captures are added.
+
+- Console overview placeholder: [public/screenshots/console-overview.svg](./public/screenshots/console-overview.svg)
+- Approval lane placeholder: [public/screenshots/approval-lane.svg](./public/screenshots/approval-lane.svg)
+- GIF placeholder note: replace these with sanitized product captures or short recordings from demo mode only
+
+## Quickstart
+
+1. Install dependencies.
 
    ```bash
    npm install
    ```
 
-2. Copy the environment example if you want to customize runtime behavior:
+2. Copy the environment template for local use.
 
    ```bash
    cp .env.example .env.local
    ```
 
-3. Start the development server:
+3. Start the app.
 
    ```bash
    npm run dev
@@ -51,78 +66,88 @@ No real credentials, handles, watchlists, or logs are committed.
 
 4. Open `http://localhost:3000`.
 
-By default, the app runs in demo mode with seeded mock data.
+5. Optional verification:
 
-## Auth diagnostics
+   ```bash
+   npm run lint
+   npm run build
+   ```
 
-Visit `/settings/auth` to inspect:
+## Demo Mode
 
-- current runtime mode
-- detected auth methods
-- capability probe matrix
-- last tested timestamps
-- sanitized error snippets
+Demo mode is the default and is intended to look polished in a public repo.
 
-API routes:
+What you get in demo mode:
 
-- `GET /api/auth/status`
-- `GET /api/capabilities`
-- `POST /api/auth/retest`
-
-## Demo mode
-
-Demo mode is the default and is safe for a public repository:
-
+- seeded feed and mentions activity
+- realistic queue, approval, profile, log, and analytics states
+- working local draft and triage persistence
+- no real outbound account mutations
 - no credentials required
-- seeded mock operator data
-- no outbound account actions
-- no secrets rendered client-side
 
-## Live mode
+The app stays in demo mode when live configuration is missing or incomplete.
 
-Live mode is intentionally gated. It will only activate when:
+## Live Mode
 
-- `X_OPERATOR_CONSOLE_MODE=live`
-- at least one complete live auth method is available in local server env
+Live mode is opt-in and local-only.
 
-Capability support is determined by server-side probe requests, not by token presence alone.
+Requirements:
 
-If live env vars are missing or incomplete, the app falls back to demo mode.
+- set `X_OPERATOR_CONSOLE_MODE=live`
+- provide a complete local credential set for at least one supported auth strategy
 
-## Public repo safety
+Notes:
+
+- capabilities come from actual server-side tests, not token presence alone
+- raw secrets never go to the client
+- if env vars are incomplete, the runtime falls back safely to demo mode
+- browser fallback is only an architectural placeholder in the current repo
+
+## Internal Architecture
+
+Key slices:
+
+- `src/features/x-auth/`: auth detection and capability diagnostics
+- `src/features/x-client/`: internal X API abstraction and sanitized error handling
+- `src/features/execution/`: normalized execution layer with future fallback hooks
+- `src/features/drafts/`: compose, queue, and post flows
+- `src/features/approvals/`: policy gating and approval records
+- `src/features/profile/`: profile surface revisions and apply logic
+- `src/features/logs/`: public-safe action logs
+- `src/features/analytics/`: starter analytics views
+- `src/features/operator-store/`: local ignored runtime persistence
+
+## Public Repo Safety
 
 Never commit:
 
-- `.env.local`
-- tokens, refresh tokens, cookies, or exports
-- runtime database files
-- logs containing sensitive account activity
-- personal watchlists or strategy notes
+- real `.env` files
+- tokens, refresh tokens, cookies, or browser auth state
+- runtime `data/`, `logs/`, `uploads/`, or `tmp/` contents from real use
+- personal handles, real watchlists, or private strategy notes
+- screenshots containing real account data
 
-Use only generic seeded data in source control.
+See [SECURITY.md](./SECURITY.md) for the full policy.
 
-## Project structure
+## Roadmap
 
-```text
-app/
-  layout.tsx
-  page.tsx
-src/
-  features/console/
-    components/
-    data/
-    server/
-```
+- richer watchlist management and targeting tools
+- dedicated audit and execution timeline views
+- scheduler/worker support for scheduled queue items
+- media upload pipeline for profile and post attachments
+- Playwright-backed browser fallback executor
+- broader analytics and follower snapshot automation
 
-## Next phases
+## Current Limitations
 
-Planned follow-up slices include:
+- demo mode is intentionally stronger than live mode in a few areas because the live executor remains conservative
+- browser fallback does not perform real automation yet
+- local persistence is JSON-file based rather than a full database
+- media upload is placeholder-only
 
-- deeper auth/capability diagnostics expansion
-- persistent operational analytics and audit views
-- profile mutation flows
-- browser fallback architecture
+## Development Notes
 
-## Security
-
-See [SECURITY.md](./SECURITY.md) for reporting guidance and repository safety expectations.
+- build incrementally and keep demo mode working
+- keep all secrets and live config local
+- prefer generic seeded data over realistic personal account data
+- treat any new logs, screenshots, and fixtures as public artifacts

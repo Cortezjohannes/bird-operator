@@ -5,16 +5,20 @@ import {
   deriveDraftApprovalContext,
   shouldGateAction,
 } from "@/src/features/approvals/server/service";
-import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import {
   deleteDraftById,
   getDraftById,
   listDrafts,
   upsertDraft,
 } from "@/src/features/operator-store/server/store";
-import { createXClient } from "@/src/features/x-client/server";
 import type { DraftPayload, DraftRecord, DraftStatus } from "@/src/features/drafts/types";
-import type { XPostRecord, XServiceResult } from "@/src/features/x-client/types";
+import {
+  executeAction,
+  liveExecutionAllowed,
+  logExecutionOutcome,
+} from "@/src/features/execution/server/service";
+import type { NormalizedActionResult } from "@/src/features/execution/types";
+import type { XPostRecord } from "@/src/features/x-client/types";
 
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -131,11 +135,6 @@ async function markDraftState(
   });
 }
 
-function postNowAllowed() {
-  const runtime = getConsoleRuntime();
-  return runtime.mode === "demo" || runtime.isLiveReady;
-}
-
 export async function postDraftNow(
   id: string,
   options?: { bypassApproval?: boolean },
@@ -173,7 +172,7 @@ export async function postDraftNow(
     }
   }
 
-  if (!postNowAllowed()) {
+  if (!liveExecutionAllowed()) {
     const failed = await markDraftState(draft, "failed", {
       message: "Live posting is not allowed without live auth readiness.",
       status: 400,
@@ -190,10 +189,16 @@ export async function postDraftNow(
     };
   }
 
-  const client = createXClient();
-
   if (draft.type === "post") {
-    const result = await client.createPost(draft.text);
+    const result = await executeAction("createPost", { text: draft.text });
+    await logExecutionOutcome({
+      actor: options?.bypassApproval ? "approver" : "operator",
+      actionType: "createPost",
+      targetType: "draft",
+      targetId: draft.id,
+      payloadSummary: "Draft post execution",
+      result,
+    });
     if (!result.ok) {
       await markDraftState(draft, "failed", {
         message: result.error.message,
@@ -215,7 +220,19 @@ export async function postDraftNow(
   }
 
   if (draft.type === "reply") {
-    const result = await client.createReply(draft.target_tweet_id || "", draft.text);
+    const result = await executeAction("createReply", {
+      tweetId: draft.target_tweet_id || "",
+      text: draft.text,
+    });
+    await logExecutionOutcome({
+      actor: options?.bypassApproval ? "approver" : "operator",
+      actionType: "createReply",
+      targetType: "draft",
+      targetId: draft.id,
+      payloadSummary: `Reply draft for ${draft.target_tweet_id || "unknown tweet"}`,
+      result,
+      relatedTweetId: draft.target_tweet_id,
+    });
     if (!result.ok) {
       await markDraftState(draft, "failed", {
         message: result.error.message,
@@ -237,7 +254,19 @@ export async function postDraftNow(
   }
 
   if (draft.type === "quote") {
-    const result = await client.createQuote(draft.target_tweet_id || "", draft.text);
+    const result = await executeAction("createQuote", {
+      tweetId: draft.target_tweet_id || "",
+      text: draft.text,
+    });
+    await logExecutionOutcome({
+      actor: options?.bypassApproval ? "approver" : "operator",
+      actionType: "createQuote",
+      targetType: "draft",
+      targetId: draft.id,
+      payloadSummary: `Quote draft for ${draft.target_tweet_id || "unknown tweet"}`,
+      result,
+      relatedTweetId: draft.target_tweet_id,
+    });
     if (!result.ok) {
       await markDraftState(draft, "failed", {
         message: result.error.message,
@@ -279,9 +308,22 @@ export async function postDraftNow(
   let previousTweetId: string | null = null;
 
   for (const block of blocks) {
-    const result: XServiceResult<XPostRecord> = previousTweetId
-      ? await client.createReply(previousTweetId, block.text)
-      : await client.createPost(block.text);
+    const result: NormalizedActionResult<XPostRecord> = previousTweetId
+      ? await executeAction("createReply", {
+          tweetId: previousTweetId,
+          text: block.text,
+        })
+      : await executeAction("createPost", { text: block.text });
+
+    await logExecutionOutcome({
+      actor: options?.bypassApproval ? "approver" : "operator",
+      actionType: previousTweetId ? "createReply" : "createPost",
+      targetType: "draft",
+      targetId: draft.id,
+      payloadSummary: `Thread block ${postedIds.length + 1} execution`,
+      result,
+      relatedTweetId: previousTweetId,
+    });
 
     if (!result.ok) {
       await markDraftState(draft, "failed", {

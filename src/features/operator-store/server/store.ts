@@ -13,6 +13,7 @@ import type {
   DraftRecord,
 } from "@/src/features/drafts/types";
 import type {
+  ExecutionSettings,
   OperatorStoreSnapshot,
   StoredTweetTriage,
   StoredWatchlistEntry,
@@ -37,6 +38,9 @@ const defaultSnapshot: OperatorStoreSnapshot = {
     currentAppliedRevisionId: null,
   },
   actionLogs: [],
+  executionSettings: {
+    browserFallbackEnabled: false,
+  },
 };
 
 async function ensureStoreFile() {
@@ -68,6 +72,9 @@ export async function readOperatorStore() {
         currentAppliedRevisionId: null,
       },
       actionLogs: parsed.actionLogs || [],
+      executionSettings: parsed.executionSettings || {
+        browserFallbackEnabled: false,
+      },
     } satisfies OperatorStoreSnapshot;
   } catch {
     return defaultSnapshot;
@@ -216,4 +223,19 @@ export async function appendActionLog(record: ActionLog) {
   snapshot.actionLogs = [record, ...snapshot.actionLogs].slice(0, 1000);
   await writeOperatorStore(snapshot);
   return record;
+}
+
+export async function getExecutionSettings() {
+  const snapshot = await readOperatorStore();
+  return snapshot.executionSettings;
+}
+
+export async function updateExecutionSettings(settings: Partial<ExecutionSettings>) {
+  const snapshot = await readOperatorStore();
+  snapshot.executionSettings = {
+    ...snapshot.executionSettings,
+    ...settings,
+  };
+  await writeOperatorStore(snapshot);
+  return snapshot.executionSettings;
 }

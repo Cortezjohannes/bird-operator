@@ -16,6 +16,10 @@ export interface StoredWatchlistEntry {
   addedAt: string;
 }
 
+export interface ExecutionSettings {
+  browserFallbackEnabled: boolean;
+}
+
 export interface OperatorStoreSnapshot {
   triage: Record<string, StoredTweetTriage>;
   watchlist: Record<string, StoredWatchlistEntry>;
@@ -26,4 +30,5 @@ export interface OperatorStoreSnapshot {
   profileRevisions: Record<string, import("@/src/features/profile/types").ProfileRevision>;
   profileState: import("@/src/features/profile/types").ProfileState;
   actionLogs: import("@/src/features/logs/types").ActionLog[];
+  executionSettings: ExecutionSettings;
 }

@@ -79,6 +79,12 @@ export default function Home() {
             >
               Approval settings
             </Link>
+            <Link
+              href="/settings/execution"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Execution fallback
+            </Link>
           </div>
         </div>
         <HeaderBar snapshot={snapshot} />

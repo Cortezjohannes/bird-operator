@@ -9,7 +9,10 @@ import {
   upsertProfileRevision,
 } from "@/src/features/operator-store/server/store";
 import { sanitizeApprovalValue } from "@/src/features/approvals/server/sanitize";
-import { createXClient } from "@/src/features/x-client/server";
+import {
+  executeAction,
+  logExecutionOutcome,
+} from "@/src/features/execution/server/service";
 import type { ExecutionLogRecord } from "@/src/features/approvals/types";
 import type {
   ProfileDraftPayload,
@@ -27,10 +30,10 @@ function now() {
 function seedDemoRevision(): ProfileRevision {
   return {
     id: "profile-demo-1",
-    name: "X Operator Console Demo",
-    bio: "Mission-control style workspace for deliberate X account operations.",
+    name: "Console Demo",
+    bio: "Mission-control workspace for deliberate X operations, approvals, and safe fallback planning.",
     url: "https://example.com/operator-console",
-    location: "Remote",
+    location: "Remote Ops",
     avatar_asset_ref: null,
     banner_asset_ref: null,
     created_at: "2026-03-27T10:00:00.000Z",
@@ -134,8 +137,6 @@ export async function applyProfileRevision(
     };
   }
 
-  const client = createXClient();
-
   await appendProfileLog({
     event_type: "execution_started",
     action_type: "profile_edit",
@@ -145,11 +146,19 @@ export async function applyProfileRevision(
     metadata: sanitizeApprovalValue(revision) as Record<string, unknown>,
   });
 
-  const textResult = await client.updateProfileText({
+  const textResult = await executeAction("updateProfileText", {
     name: revision.name,
     description: revision.bio,
     url: revision.url,
     location: revision.location,
+  });
+  await logExecutionOutcome({
+    actor: options?.bypassApproval ? "approver" : "operator",
+    actionType: "updateProfileText",
+    targetType: "profile",
+    targetId: revision.id,
+    payloadSummary: "Profile text surface execution",
+    result: textResult,
   });
 
   if (!textResult.ok) {
@@ -172,9 +181,17 @@ export async function applyProfileRevision(
   }
 
   if (revision.avatar_asset_ref || revision.banner_asset_ref) {
-    const mediaResult = await client.updateProfileMedia({
+    const mediaResult = await executeAction("updateProfileMedia", {
       avatarMediaId: revision.avatar_asset_ref || undefined,
       bannerMediaId: revision.banner_asset_ref || undefined,
+    });
+    await logExecutionOutcome({
+      actor: options?.bypassApproval ? "approver" : "operator",
+      actionType: "updateProfileMedia",
+      targetType: "profile",
+      targetId: revision.id,
+      payloadSummary: "Profile media surface execution",
+      result: mediaResult,
     });
 
     if (!mediaResult.ok) {

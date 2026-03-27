@@ -31,7 +31,12 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
 !.env.example
 
 # local runtime artifacts
@@ -42,6 +47,8 @@ yarn-error.log*
 logs/
 data/
 uploads/
+tmp/
+playwright/.auth/
 *.log
 
 # vercel

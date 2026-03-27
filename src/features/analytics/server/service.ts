@@ -9,38 +9,40 @@ import type { ActionLog } from "@/src/features/logs/types";
 const demoAnalytics: Omit<AnalyticsSnapshot, "sourceLogs"> = {
   postsPerDay: [
     { day: "2026-03-24", count: 2 },
-    { day: "2026-03-25", count: 1 },
+    { day: "2026-03-25", count: 2 },
     { day: "2026-03-26", count: 3 },
-    { day: "2026-03-27", count: 2 },
-    { day: "2026-03-28", count: 1 },
+    { day: "2026-03-27", count: 4 },
+    { day: "2026-03-28", count: 2 },
   ],
   repliesPerDay: [
     { day: "2026-03-24", count: 4 },
-    { day: "2026-03-25", count: 2 },
+    { day: "2026-03-25", count: 3 },
     { day: "2026-03-26", count: 5 },
-    { day: "2026-03-27", count: 3 },
-    { day: "2026-03-28", count: 2 },
+    { day: "2026-03-27", count: 6 },
+    { day: "2026-03-28", count: 3 },
   ],
   engagementByPost: [
-    { postId: "demo-post-001", label: "Launch follow-up", likes: 226, reposts: 41, replies: 18 },
-    { postId: "demo-post-002", label: "Operator recap", likes: 148, reposts: 21, replies: 11 },
+    { postId: "demo-post-001", label: "Launch room follow-up", likes: 238, reposts: 44, replies: 18 },
+    { postId: "demo-post-002", label: "Approval workflow recap", likes: 176, reposts: 25, replies: 13 },
+    { postId: "demo-post-003", label: "Operator systems note", likes: 132, reposts: 17, replies: 9 },
   ],
   topPerformingPosts: [
-    { postId: "demo-post-001", label: "Launch follow-up", score: 285 },
-    { postId: "demo-post-002", label: "Operator recap", score: 180 },
+    { postId: "demo-post-001", label: "Launch room follow-up", score: 300 },
+    { postId: "demo-post-002", label: "Approval workflow recap", score: 214 },
+    { postId: "demo-post-003", label: "Operator systems note", score: 158 },
   ],
   draftCategoryPerformance: [
-    { category: "post", drafted: 8, posted: 5, failed: 1 },
-    { category: "reply", drafted: 12, posted: 7, failed: 2 },
-    { category: "quote", drafted: 5, posted: 3, failed: 1 },
-    { category: "thread", drafted: 4, posted: 2, failed: 1 },
+    { category: "post", drafted: 9, posted: 6, failed: 1 },
+    { category: "reply", drafted: 14, posted: 9, failed: 2 },
+    { category: "quote", drafted: 6, posted: 4, failed: 1 },
+    { category: "thread", drafted: 5, posted: 3, failed: 1 },
   ],
   followerSnapshots: [
-    { day: "2026-03-24", followers: 11980 },
-    { day: "2026-03-25", followers: 12045 },
-    { day: "2026-03-26", followers: 12100 },
-    { day: "2026-03-27", followers: 12210 },
-    { day: "2026-03-28", followers: 12400 },
+    { day: "2026-03-24", followers: 12010 },
+    { day: "2026-03-25", followers: 12080 },
+    { day: "2026-03-26", followers: 12165 },
+    { day: "2026-03-27", followers: 12310 },
+    { day: "2026-03-28", followers: 12480 },
   ],
 };
 
@@ -60,7 +62,7 @@ export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
   const logs = await getActionLogs();
   const drafts = await getDrafts();
 
-  if (runtime.mode === "demo" && logs.length <= 3) {
+  if (runtime.mode === "demo" && logs.length <= 4) {
     return {
       ...demoAnalytics,
       sourceLogs: logs,
