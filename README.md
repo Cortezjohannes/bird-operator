@@ -12,6 +12,8 @@ The repository currently includes:
 - seeded mock snapshot data for queue, watchlist, activity, profile, and analytics
 - server-side auth abstraction for OAuth 1.0a, OAuth 2.0 user tokens, bearer token, and client credentials
 - capability diagnostics page with sanitized probe results
+- internal X client service for demo/live operations, structured logs, and normalized errors
+- feed and mentions operator pages with persistent local triage labels
 - public-repo hygiene files and setup guidance
 
 No real credentials, handles, watchlists, or logs are committed.
@@ -113,7 +115,6 @@ src/
 
 Planned follow-up slices include:
 
-- internal X client abstraction
 - auth/capability diagnostics expansion
 - draft and approval workflows
 - queues and execution logs

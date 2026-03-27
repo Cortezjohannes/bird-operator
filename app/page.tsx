@@ -18,12 +18,26 @@ export default function Home() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_32%),linear-gradient(180deg,_#07111d_0%,_#04070c_55%,_#020409_100%)] px-4 py-4 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         <div className="flex justify-end">
-          <Link
-            href="/settings/auth"
-            className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
-          >
-            Auth diagnostics
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/feed"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Feed
+            </Link>
+            <Link
+              href="/mentions"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Mentions
+            </Link>
+            <Link
+              href="/settings/auth"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Auth diagnostics
+            </Link>
+          </div>
         </div>
         <HeaderBar snapshot={snapshot} />
         <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
