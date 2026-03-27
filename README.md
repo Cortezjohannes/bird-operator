@@ -14,6 +14,8 @@ The repository currently includes:
 - capability diagnostics page with sanitized probe results
 - internal X client service for demo/live operations, structured logs, and normalized errors
 - feed and mentions operator pages with persistent local triage labels
+- compose and queue workflows with thread-capable draft storage
+- policy-driven approval workflows with presets, overrides, and sanitized execution logs
 - public-repo hygiene files and setup guidance
 
 No real credentials, handles, watchlists, or logs are committed.
@@ -115,9 +117,8 @@ src/
 
 Planned follow-up slices include:
 
-- auth/capability diagnostics expansion
-- draft and approval workflows
-- queues and execution logs
+- deeper auth/capability diagnostics expansion
+- persistent operational analytics and audit views
 - profile mutation flows
 - browser fallback architecture
 

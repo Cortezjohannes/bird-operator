@@ -20,6 +20,24 @@ export default function Home() {
         <div className="flex justify-end">
           <div className="flex flex-wrap gap-2">
             <Link
+              href="/compose"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Compose
+            </Link>
+            <Link
+              href="/queue"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Queue
+            </Link>
+            <Link
+              href="/approvals"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Approvals
+            </Link>
+            <Link
               href="/feed"
               className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
             >
@@ -36,6 +54,12 @@ export default function Home() {
               className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
             >
               Auth diagnostics
+            </Link>
+            <Link
+              href="/settings/approvals"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Approval settings
             </Link>
           </div>
         </div>
