@@ -18,6 +18,8 @@ import type {
   StoredWatchlistEntry,
   TriageLabel,
 } from "@/src/features/operator-store/types";
+import type { ActionLog } from "@/src/features/logs/types";
+import type { ProfileRevision, ProfileState } from "@/src/features/profile/types";
 
 const dataDir = path.join(process.cwd(), "data");
 const storePath = path.join(dataDir, "operator-store.json");
@@ -29,6 +31,12 @@ const defaultSnapshot: OperatorStoreSnapshot = {
   approvals: {},
   approvalPolicy: defaultApprovalPolicy(),
   executionLogs: [],
+  profileRevisions: {},
+  profileState: {
+    currentDraftRevisionId: null,
+    currentAppliedRevisionId: null,
+  },
+  actionLogs: [],
 };
 
 async function ensureStoreFile() {
@@ -54,6 +62,12 @@ export async function readOperatorStore() {
       approvals: parsed.approvals || {},
       approvalPolicy: parsed.approvalPolicy || defaultApprovalPolicy(),
       executionLogs: parsed.executionLogs || [],
+      profileRevisions: parsed.profileRevisions || {},
+      profileState: parsed.profileState || {
+        currentDraftRevisionId: null,
+        currentAppliedRevisionId: null,
+      },
+      actionLogs: parsed.actionLogs || [],
     } satisfies OperatorStoreSnapshot;
   } catch {
     return defaultSnapshot;
@@ -154,4 +168,52 @@ export async function upsertExecutionLog(record: ExecutionLogRecord) {
 export async function listExecutionLogs() {
   const snapshot = await readOperatorStore();
   return snapshot.executionLogs;
+}
+
+export async function listProfileRevisions() {
+  const snapshot = await readOperatorStore();
+  return Object.values(snapshot.profileRevisions).sort((a, b) => {
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+}
+
+export async function getProfileRevisionById(id: string) {
+  const snapshot = await readOperatorStore();
+  return snapshot.profileRevisions[id] || null;
+}
+
+export async function upsertProfileRevision(record: ProfileRevision) {
+  const snapshot = await readOperatorStore();
+  snapshot.profileRevisions[record.id] = record;
+  await writeOperatorStore(snapshot);
+  return record;
+}
+
+export async function getProfileState() {
+  const snapshot = await readOperatorStore();
+  return snapshot.profileState;
+}
+
+export async function updateProfileState(nextState: Partial<ProfileState>) {
+  const snapshot = await readOperatorStore();
+  snapshot.profileState = {
+    ...snapshot.profileState,
+    ...nextState,
+  };
+  await writeOperatorStore(snapshot);
+  return snapshot.profileState;
+}
+
+export async function listActionLogs() {
+  const snapshot = await readOperatorStore();
+  return snapshot.actionLogs.sort((a, b) => {
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  });
+}
+
+export async function appendActionLog(record: ActionLog) {
+  const snapshot = await readOperatorStore();
+  snapshot.actionLogs = [record, ...snapshot.actionLogs].slice(0, 1000);
+  await writeOperatorStore(snapshot);
+  return record;
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { capabilityAuthPreference, capabilityOrder } from "@/src/features/x-auth/capabilities";
+import { recordActionLog } from "@/src/features/logs/server/service";
 import { getDetectedAuthMethods } from "@/src/features/x-auth/server/auth-config";
 import type {
   CapabilityTestResult,
@@ -48,6 +49,11 @@ function formatResult<T>(
         status: number;
         data: T;
         message: string;
+        actor?: string;
+        targetType?: "tweet" | "user" | "profile" | "timeline" | "mention" | "system";
+        targetId?: string | null;
+        payloadSummary?: string;
+        relatedTweetId?: string | null;
       }
     | {
         ok: false;
@@ -56,6 +62,11 @@ function formatResult<T>(
         operation: string;
         endpointLabel: string;
         error: XNormalizedError;
+        actor?: string;
+        targetType?: "tweet" | "user" | "profile" | "timeline" | "mention" | "system";
+        targetId?: string | null;
+        payloadSummary?: string;
+        relatedTweetId?: string | null;
       },
 ): XServiceResult<T> {
   if (input.ok) {
@@ -69,6 +80,17 @@ function formatResult<T>(
       message: input.message,
     });
     emitXLog(logEntry);
+    void recordActionLog({
+      actor: input.actor || "operator",
+      actionType: input.operation,
+      targetType: input.targetType || "system",
+      targetId: input.targetId || null,
+      payloadSummary: input.payloadSummary || input.endpointLabel,
+      resultStatus: "success",
+      resultExcerpt: input.message,
+      authMethod: input.authStrategy,
+      relatedTweetId: input.relatedTweetId || null,
+    });
     return {
       ok: true,
       data: input.data,
@@ -88,6 +110,17 @@ function formatResult<T>(
     message: input.error.message,
   });
   emitXLog(logEntry);
+  void recordActionLog({
+    actor: input.actor || "operator",
+    actionType: input.operation,
+    targetType: input.targetType || "system",
+    targetId: input.targetId || null,
+    payloadSummary: input.payloadSummary || input.endpointLabel,
+    resultStatus: "failed",
+    resultExcerpt: input.error.message,
+    authMethod: input.authStrategy,
+    relatedTweetId: input.relatedTweetId || null,
+  });
   return {
     ok: false,
     error: input.error,
@@ -172,6 +205,10 @@ async function executeLiveRequest<T>(input: {
   mapData: (body: unknown) => T;
   requireUserContext?: boolean;
   preferredAuthStrategy?: XAuthMethod;
+  targetType?: "tweet" | "user" | "profile" | "timeline" | "mention" | "system";
+  targetId?: string | null;
+  payloadSummary?: string;
+  relatedTweetId?: string | null;
 }) {
   const authStrategy = chooseAuthStrategy(
     input.capability,
@@ -192,6 +229,10 @@ async function executeLiveRequest<T>(input: {
         authStrategy,
         message: "No compatible live auth strategy is configured.",
       }),
+      targetType: input.targetType,
+      targetId: input.targetId,
+      payloadSummary: input.payloadSummary,
+      relatedTweetId: input.relatedTweetId,
     });
   }
 
@@ -206,6 +247,10 @@ async function executeLiveRequest<T>(input: {
         operation: input.operation,
         endpointLabel: input.endpointLabel,
         error: me.error,
+        targetType: input.targetType,
+        targetId: input.targetId,
+        payloadSummary: input.payloadSummary,
+        relatedTweetId: input.relatedTweetId,
       });
     }
     context.userId = me.userId;
@@ -228,6 +273,10 @@ async function executeLiveRequest<T>(input: {
       operation: input.operation,
       endpointLabel: input.endpointLabel,
       error: response.error,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      payloadSummary: input.payloadSummary,
+      relatedTweetId: input.relatedTweetId,
     });
   }
 
@@ -240,6 +289,10 @@ async function executeLiveRequest<T>(input: {
     status: response.status,
     data: input.mapData(response.body),
     message: `${input.operation} completed successfully.`,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    payloadSummary: input.payloadSummary,
+    relatedTweetId: input.relatedTweetId,
   });
 }
 
@@ -255,6 +308,7 @@ function createDemoClient(): XClient {
         status: 200,
         data: demoTimeline,
         message: "Returned seeded demo timeline.",
+        targetType: "timeline",
       });
     },
     async getMentions() {
@@ -267,6 +321,7 @@ function createDemoClient(): XClient {
         status: 200,
         data: demoMentions,
         message: "Returned seeded demo mentions.",
+        targetType: "mention",
       });
     },
     async getUser(handle) {
@@ -286,6 +341,9 @@ function createDemoClient(): XClient {
             authStrategy: "demo",
             message: `No demo user found for ${normalized}.`,
           }),
+          targetType: "user",
+          targetId: normalized,
+          payloadSummary: `Lookup user ${normalized}`,
         });
       }
       return formatResult<XUserSummary>({
@@ -297,6 +355,9 @@ function createDemoClient(): XClient {
         status: 200,
         data: user,
         message: "Returned seeded demo user.",
+        targetType: "user",
+        targetId: user.id,
+        payloadSummary: `Lookup user ${normalized}`,
       });
     },
     async createPost(text) {
@@ -309,6 +370,8 @@ function createDemoClient(): XClient {
         status: 200,
         data: createDemoPost(text),
         message: "Created seeded demo post.",
+        targetType: "tweet",
+        payloadSummary: text.slice(0, 120),
       });
     },
     async createReply(tweetId, text) {
@@ -321,6 +384,10 @@ function createDemoClient(): XClient {
         status: 200,
         data: createDemoPost(`Reply to ${tweetId}: ${text}`),
         message: "Created seeded demo reply.",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: text.slice(0, 120),
       });
     },
     async createQuote(tweetId, text) {
@@ -333,6 +400,10 @@ function createDemoClient(): XClient {
         status: 200,
         data: createDemoPost(`Quote ${tweetId}: ${text}`),
         message: "Created seeded demo quote post.",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: text.slice(0, 120),
       });
     },
     async likeTweet(tweetId) {
@@ -345,6 +416,10 @@ function createDemoClient(): XClient {
         status: 200,
         data: { liked: true, tweetId },
         message: "Recorded seeded demo like.",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Like tweet ${tweetId}`,
       });
     },
     async repostTweet(tweetId) {
@@ -357,6 +432,10 @@ function createDemoClient(): XClient {
         status: 200,
         data: { reposted: true, tweetId },
         message: "Recorded seeded demo repost.",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Repost tweet ${tweetId}`,
       });
     },
     async bookmarkTweet(tweetId) {
@@ -369,6 +448,10 @@ function createDemoClient(): XClient {
         status: 200,
         data: { bookmarked: true, tweetId },
         message: "Recorded seeded demo bookmark.",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Bookmark tweet ${tweetId}`,
       });
     },
     async followUser(userId) {
@@ -381,6 +464,9 @@ function createDemoClient(): XClient {
         status: 200,
         data: { following: true, userId },
         message: "Recorded seeded demo follow.",
+        targetType: "user",
+        targetId: userId,
+        payloadSummary: `Follow user ${userId}`,
       });
     },
     async unfollowUser(userId) {
@@ -393,6 +479,9 @@ function createDemoClient(): XClient {
         status: 200,
         data: { following: false, userId },
         message: "Recorded seeded demo unfollow.",
+        targetType: "user",
+        targetId: userId,
+        payloadSummary: `Unfollow user ${userId}`,
       });
     },
     async updateProfileText(input: XProfileTextInput) {
@@ -406,6 +495,9 @@ function createDemoClient(): XClient {
         status: 200,
         data: { updated: true },
         message: "Recorded seeded demo profile text update.",
+        targetType: "profile",
+        targetId: "profile-surface",
+        payloadSummary: "Update profile text",
       });
     },
     async updateProfileMedia(input: XProfileMediaInput) {
@@ -419,6 +511,9 @@ function createDemoClient(): XClient {
         status: 200,
         data: { updated: true },
         message: "Recorded seeded demo profile media update.",
+        targetType: "profile",
+        targetId: "profile-surface",
+        payloadSummary: "Update profile media",
       });
     },
     async getCapabilities(options) {
@@ -443,6 +538,7 @@ function createLiveClient(): XClient {
         capability: "read_timeline",
         operation: "getTimeline",
         endpointLabel: "Get timeline",
+        targetType: "timeline",
         pathResolver: ({ userId }) =>
           `/2/users/${userId}/timelines/reverse_chronological`,
         query: { max_results: "10" },
@@ -484,6 +580,7 @@ function createLiveClient(): XClient {
         capability: "read_mentions",
         operation: "getMentions",
         endpointLabel: "Get mentions",
+        targetType: "mention",
         pathResolver: ({ userId }) => `/2/users/${userId}/mentions`,
         query: { max_results: "10" },
         mapData: (body) => {
@@ -524,6 +621,9 @@ function createLiveClient(): XClient {
         capability: "analytics_read",
         operation: "getUser",
         endpointLabel: "Get user by handle",
+        targetType: "user",
+        targetId: handle.replace(/^@/, ""),
+        payloadSummary: `Lookup user ${handle}`,
         pathResolver: () => `/2/users/by/username/${handle.replace(/^@/, "")}`,
         query: { "user.fields": "description,public_metrics" },
         requireUserContext: false,
@@ -550,6 +650,8 @@ function createLiveClient(): XClient {
         capability: "post_tweet",
         operation: "createPost",
         endpointLabel: "Create post",
+        targetType: "tweet",
+        payloadSummary: text.slice(0, 120),
         pathResolver: () => "/2/tweets",
         method: "POST",
         body: {
@@ -571,6 +673,10 @@ function createLiveClient(): XClient {
         capability: "reply_tweet",
         operation: "createReply",
         endpointLabel: "Create reply",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: text.slice(0, 120),
         pathResolver: () => "/2/tweets",
         method: "POST",
         body: { text, reply: { in_reply_to_tweet_id: tweetId } },
@@ -589,6 +695,10 @@ function createLiveClient(): XClient {
         capability: "quote_tweet",
         operation: "createQuote",
         endpointLabel: "Create quote post",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: text.slice(0, 120),
         pathResolver: () => "/2/tweets",
         method: "POST",
         body: { text, quote_tweet_id: tweetId },
@@ -607,6 +717,10 @@ function createLiveClient(): XClient {
         capability: "like_tweet",
         operation: "likeTweet",
         endpointLabel: "Like tweet",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Like tweet ${tweetId}`,
         pathResolver: ({ userId }) => `/2/users/${userId}/likes`,
         method: "POST",
         body: { tweet_id: tweetId },
@@ -618,6 +732,10 @@ function createLiveClient(): XClient {
         capability: "repost_tweet",
         operation: "repostTweet",
         endpointLabel: "Repost tweet",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Repost tweet ${tweetId}`,
         pathResolver: ({ userId }) => `/2/users/${userId}/retweets`,
         method: "POST",
         body: { tweet_id: tweetId },
@@ -629,6 +747,10 @@ function createLiveClient(): XClient {
         capability: "bookmark_tweet",
         operation: "bookmarkTweet",
         endpointLabel: "Bookmark tweet",
+        targetType: "tweet",
+        targetId: tweetId,
+        relatedTweetId: tweetId,
+        payloadSummary: `Bookmark tweet ${tweetId}`,
         pathResolver: ({ userId }) => `/2/users/${userId}/bookmarks`,
         method: "POST",
         body: { tweet_id: tweetId },
@@ -640,6 +762,9 @@ function createLiveClient(): XClient {
         capability: "follow_user",
         operation: "followUser",
         endpointLabel: "Follow user",
+        targetType: "user",
+        targetId: userId,
+        payloadSummary: `Follow user ${userId}`,
         pathResolver: ({ userId: sourceUserId }) =>
           `/2/users/${sourceUserId}/following`,
         method: "POST",
@@ -652,6 +777,9 @@ function createLiveClient(): XClient {
         capability: "unfollow_user",
         operation: "unfollowUser",
         endpointLabel: "Unfollow user",
+        targetType: "user",
+        targetId: userId,
+        payloadSummary: `Unfollow user ${userId}`,
         pathResolver: ({ userId: sourceUserId }) =>
           `/2/users/${sourceUserId}/following/${userId}`,
         method: "DELETE",
@@ -663,6 +791,9 @@ function createLiveClient(): XClient {
         capability: "update_profile_text",
         operation: "updateProfileText",
         endpointLabel: "Update profile text",
+        targetType: "profile",
+        targetId: "profile-surface",
+        payloadSummary: "Update profile text",
         pathResolver: () => "/1.1/account/update_profile.json",
         method: "POST",
         query: Object.fromEntries(
@@ -697,6 +828,9 @@ function createLiveClient(): XClient {
             authStrategy,
             message: "Provide avatarMediaId or bannerMediaId for profile media updates.",
           }),
+          targetType: "profile",
+          targetId: "profile-surface",
+          payloadSummary: "Update profile media",
         });
       }
 
@@ -705,6 +839,9 @@ function createLiveClient(): XClient {
           capability: "update_profile_media",
           operation: "updateProfileMedia",
           endpointLabel: "Update profile image",
+          targetType: "profile",
+          targetId: "profile-surface",
+          payloadSummary: "Update profile avatar",
           pathResolver: () => "/1.1/account/update_profile_image.json",
           method: "POST",
           query: { media_id: input.avatarMediaId },
@@ -717,6 +854,9 @@ function createLiveClient(): XClient {
         capability: "update_profile_media",
         operation: "updateProfileMedia",
         endpointLabel: "Update profile banner",
+        targetType: "profile",
+        targetId: "profile-surface",
+        payloadSummary: "Update profile banner",
         pathResolver: () => "/1.1/account/update_profile_banner.json",
         method: "POST",
         query: { media_id: input.bannerMediaId || "" },

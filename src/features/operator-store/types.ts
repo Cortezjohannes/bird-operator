@@ -23,4 +23,7 @@ export interface OperatorStoreSnapshot {
   approvals: Record<string, import("@/src/features/approvals/types").ApprovalRequest>;
   approvalPolicy: import("@/src/features/approvals/types").ApprovalPolicySettings;
   executionLogs: import("@/src/features/approvals/types").ExecutionLogRecord[];
+  profileRevisions: Record<string, import("@/src/features/profile/types").ProfileRevision>;
+  profileState: import("@/src/features/profile/types").ProfileState;
+  actionLogs: import("@/src/features/logs/types").ActionLog[];
 }

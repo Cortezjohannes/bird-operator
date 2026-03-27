@@ -38,6 +38,24 @@ export default function Home() {
               Approvals
             </Link>
             <Link
+              href="/profile"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Profile
+            </Link>
+            <Link
+              href="/logs"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Logs
+            </Link>
+            <Link
+              href="/analytics"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Analytics
+            </Link>
+            <Link
               href="/feed"
               className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
             >

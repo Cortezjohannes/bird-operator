@@ -1,5 +1,6 @@
 import "server-only";
 
+import { recordActionLog } from "@/src/features/logs/server/service";
 import {
   getApprovalById,
   getDraftById,
@@ -9,6 +10,7 @@ import {
   upsertApproval,
   upsertExecutionLog,
 } from "@/src/features/operator-store/server/store";
+import { applyProfileRevision } from "@/src/features/profile/server/service";
 import { sanitizeApprovalValue } from "@/src/features/approvals/server/sanitize";
 import {
   defaultApprovalPolicy,
@@ -60,6 +62,15 @@ export async function setApprovalPolicy(settings: ApprovalPolicySettings) {
     message: `Approval preset set to ${settings.preset}.`,
     metadata: sanitizeApprovalValue(settings) as Record<string, unknown>,
   });
+  await recordActionLog({
+    actor: "operator",
+    actionType: "settings_updated",
+    targetType: "settings",
+    payloadSummary: `Approval preset ${settings.preset}`,
+    resultStatus: "success",
+    resultExcerpt: `Updated approval policy to ${settings.preset}.`,
+    authMethod: "system",
+  });
   return next;
 }
 
@@ -96,6 +107,16 @@ export async function createApprovalRequest(input: {
     target_id: request.id,
     message: `${input.actionType} is waiting for approval.`,
     metadata: request.payload_json,
+  });
+  await recordActionLog({
+    actor: input.requestedBy,
+    actionType: "approval_requested",
+    targetType: "approval",
+    targetId: request.id,
+    payloadSummary: input.reason,
+    resultStatus: "queued",
+    resultExcerpt: `${input.actionType} is waiting for approval.`,
+    authMethod: "system",
   });
   return request;
 }
@@ -167,6 +188,16 @@ export async function rejectApprovalRequest(id: string, reviewer = "operator") {
     message: `${approval.action_type} was rejected.`,
     metadata: approval.payload_json,
   });
+  await recordActionLog({
+    actor: reviewer,
+    actionType: "approval_rejected",
+    targetType: "approval",
+    targetId: approval.id,
+    payloadSummary: approval.reason,
+    resultStatus: "skipped",
+    resultExcerpt: `${approval.action_type} was rejected.`,
+    authMethod: "system",
+  });
 
   return updated;
 }
@@ -200,8 +231,12 @@ export async function approveApprovalRequest(input: {
     typeof approval.payload_json.draftId === "string"
       ? approval.payload_json.draftId
       : null;
+  const profileRevisionId =
+    typeof approval.payload_json.profileRevisionId === "string"
+      ? approval.payload_json.profileRevisionId
+      : null;
 
-  if (!draftId) {
+  if (!draftId && !profileRevisionId) {
     const updated = await updateApprovalStatus(approval, "approved", reviewer);
     await appendExecutionLog({
       event_type: "approval_approved",
@@ -211,7 +246,59 @@ export async function approveApprovalRequest(input: {
       message: `${approval.action_type} approved without linked draft.`,
       metadata: approval.payload_json,
     });
+    await recordActionLog({
+      actor: reviewer,
+      actionType: "approval_approved",
+      targetType: "approval",
+      targetId: approval.id,
+      payloadSummary: approval.reason,
+      resultStatus: "success",
+      resultExcerpt: `${approval.action_type} approved.`,
+      authMethod: "system",
+    });
     return { ok: true as const, approval: updated, draft: null };
+  }
+
+  if (profileRevisionId) {
+    const approved = await updateApprovalStatus(approval, "approved", reviewer);
+    await appendExecutionLog({
+      event_type: "approval_approved",
+      action_type: approval.action_type,
+      actor: reviewer,
+      target_id: approval.id,
+      message: `${approval.action_type} approved and queued for execution.`,
+      metadata: approval.payload_json,
+    });
+    await recordActionLog({
+      actor: reviewer,
+      actionType: "approval_approved",
+      targetType: "approval",
+      targetId: approval.id,
+      payloadSummary: approval.reason,
+      resultStatus: "success",
+      resultExcerpt: `${approval.action_type} approved.`,
+      authMethod: "system",
+    });
+
+    const execution = await applyProfileRevision(profileRevisionId, {
+      bypassApproval: true,
+    });
+
+    if (!execution.ok) {
+      return {
+        ok: false as const,
+        error: execution.error,
+      };
+    }
+
+    return { ok: true as const, approval: approved, draft: null };
+  }
+
+  if (!draftId) {
+    return {
+      ok: false as const,
+      error: { message: "Linked execution target not found.", status: 404, code: "missing_target" },
+    };
   }
 
   const draft = await getDraftById(draftId);
@@ -240,6 +327,16 @@ export async function approveApprovalRequest(input: {
     target_id: approval.id,
     message: `${approval.action_type} approved and queued for execution.`,
     metadata: approval.payload_json,
+  });
+  await recordActionLog({
+    actor: reviewer,
+    actionType: "approval_approved",
+    targetType: "approval",
+    targetId: approval.id,
+    payloadSummary: approval.reason,
+    resultStatus: "success",
+    resultExcerpt: `${approval.action_type} approved.`,
+    authMethod: "system",
   });
 
   await appendExecutionLog({

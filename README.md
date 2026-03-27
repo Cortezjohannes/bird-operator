@@ -16,6 +16,7 @@ The repository currently includes:
 - feed and mentions operator pages with persistent local triage labels
 - compose and queue workflows with thread-capable draft storage
 - policy-driven approval workflows with presets, overrides, and sanitized execution logs
+- profile surface editor with revision history and approval-aware apply flow
 - public-repo hygiene files and setup guidance
 
 No real credentials, handles, watchlists, or logs are committed.

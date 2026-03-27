@@ -19,6 +19,11 @@ export interface XLogEntry {
   success: boolean;
   status: number;
   message: string;
+  actor?: string;
+  targetType?: "tweet" | "user" | "profile" | "timeline" | "mention" | "system";
+  targetId?: string | null;
+  payloadSummary?: string;
+  relatedTweetId?: string | null;
 }
 
 export interface XUserSummary {
