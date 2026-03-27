@@ -30,8 +30,19 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+!.env.example
+
+# local runtime artifacts
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+logs/
+data/
+uploads/
+*.log
 
 # vercel
 .vercel
