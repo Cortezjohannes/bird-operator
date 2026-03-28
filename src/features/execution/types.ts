@@ -74,7 +74,7 @@ export interface ExecutionFallbackState {
 
 export interface ExecutionMetadata {
   action: ExecutionActionType;
-  mode: "demo" | "live";
+  mode: "unavailable" | "live";
   authMethod: XAuthMethod | "system";
   primaryExecutor: "api" | "fallback";
   capabilityHint: XCapability | "n/a";

@@ -12,7 +12,7 @@ export interface XNormalizedError {
 export interface XLogEntry {
   id: string;
   timestamp: string;
-  mode: "demo" | "live";
+  mode: "unavailable" | "live";
   operation: string;
   endpointLabel: string;
   authStrategy: XAuthMethod;
@@ -73,14 +73,14 @@ export type XServiceResult<T> =
       ok: true;
       data: T;
       logEntry: XLogEntry;
-      mode: "demo" | "live";
+      mode: "unavailable" | "live";
       authStrategy: XAuthMethod;
     }
   | {
       ok: false;
       error: XNormalizedError;
       logEntry: XLogEntry;
-      mode: "demo" | "live";
+      mode: "unavailable" | "live";
       authStrategy: XAuthMethod;
     };
 

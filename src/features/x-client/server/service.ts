@@ -44,7 +44,7 @@ function formatResult<T>(
   input:
     | {
         ok: true;
-        mode: "demo" | "live";
+        mode: "unavailable" | "live";
         authStrategy: XAuthMethod;
         operation: string;
         endpointLabel: string;
@@ -59,7 +59,7 @@ function formatResult<T>(
       }
     | {
         ok: false;
-        mode: "demo" | "live";
+        mode: "unavailable" | "live";
         authStrategy: XAuthMethod;
         operation: string;
         endpointLabel: string;
@@ -139,11 +139,89 @@ function extractData<T>(body: unknown, fallback: T): T {
   return fallback;
 }
 
+function extractUsersById(body: unknown) {
+  const includes =
+    body && typeof body === "object" && "includes" in body
+      ? (body as { includes?: unknown }).includes
+      : null;
+  const users =
+    includes && typeof includes === "object" && "users" in includes
+      ? (includes as { users?: unknown }).users
+      : null;
+  const userMap = new Map<string, { handle: string; name: string }>();
+
+  if (!Array.isArray(users)) {
+    return userMap;
+  }
+
+  for (const entry of users) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const user = entry as Record<string, unknown>;
+    const id = typeof user.id === "string" ? user.id : "";
+    if (!id) {
+      continue;
+    }
+
+    userMap.set(id, {
+      handle: `@${String(user.username || "unknown")}`,
+      name: String(user.name || user.username || "Unknown user"),
+    });
+  }
+
+  return userMap;
+}
+
+function mapTimelineEntries(body: unknown, options: {
+  unread: boolean;
+  fallbackHandle: string;
+  fallbackName: string;
+}) {
+  const tweets = extractData<Array<Record<string, unknown>>>(body, []);
+  const usersById = extractUsersById(body);
+
+  return tweets.map((tweet) => {
+    const authorId = typeof tweet.author_id === "string" ? tweet.author_id : "";
+    const author = usersById.get(authorId);
+
+    return {
+      id: String(tweet.id || ""),
+      text: String(tweet.text || ""),
+      authorHandle: author?.handle || options.fallbackHandle,
+      authorName: author?.name || options.fallbackName,
+      createdAt: String(tweet.created_at || new Date().toISOString()),
+      metrics:
+        tweet.public_metrics && typeof tweet.public_metrics === "object"
+          ? {
+              replies: Number(
+                (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
+              ),
+              reposts: Number(
+                (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
+              ),
+              likes: Number(
+                (tweet.public_metrics as Record<string, unknown>).like_count || 0,
+              ),
+              bookmarks: Number(
+                (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
+              ),
+              impressions: Number(
+                (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
+              ),
+            }
+          : undefined,
+      unread: options.unread,
+    };
+  });
+}
+
 function createUnavailableClient(input?: {
-  mode?: "demo" | "live";
+  mode?: "unavailable" | "live";
   reason?: string;
 }): XClient {
-  const mode = input?.mode || "live";
+  const mode = input?.mode || "unavailable";
   const reason =
     input?.reason ||
     "Live X access is unavailable. Connect a valid X account and confirm the required auth scopes.";
@@ -391,38 +469,18 @@ function createLiveClient(scope?: XClientScope): XClient {
         targetType: "timeline",
         pathResolver: ({ userId }) =>
           `/2/users/${userId}/timelines/reverse_chronological`,
-        query: { max_results: "10" },
-        mapData: (body) => {
-          const tweets = extractData<Array<Record<string, unknown>>>(body, []);
-          return tweets.map((tweet) => ({
-            id: String(tweet.id || ""),
-            text: String(tweet.text || ""),
-            authorHandle: "@authenticated_user",
-            authorName: "Authenticated User",
-            createdAt: String(tweet.created_at || new Date().toISOString()),
-            metrics:
-              tweet.public_metrics && typeof tweet.public_metrics === "object"
-                ? {
-                    replies: Number(
-                      (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
-                    ),
-                    reposts: Number(
-                      (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
-                    ),
-                    likes: Number(
-                      (tweet.public_metrics as Record<string, unknown>).like_count || 0,
-                    ),
-                    bookmarks: Number(
-                      (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
-                    ),
-                    impressions: Number(
-                      (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
-                    ),
-                  }
-                : undefined,
-            unread: false,
-          }));
+        query: {
+          max_results: "10",
+          expansions: "author_id",
+          "tweet.fields": "author_id,created_at,public_metrics",
+          "user.fields": "name,username",
         },
+        mapData: (body) =>
+          mapTimelineEntries(body, {
+            unread: false,
+            fallbackHandle: "@authenticated_user",
+            fallbackName: "Authenticated User",
+          }),
       });
     },
     async getMentions() {
@@ -432,38 +490,18 @@ function createLiveClient(scope?: XClientScope): XClient {
         endpointLabel: "Get mentions",
         targetType: "mention",
         pathResolver: ({ userId }) => `/2/users/${userId}/mentions`,
-        query: { max_results: "10" },
-        mapData: (body) => {
-          const tweets = extractData<Array<Record<string, unknown>>>(body, []);
-          return tweets.map((tweet) => ({
-            id: String(tweet.id || ""),
-            text: String(tweet.text || ""),
-            authorHandle: "@unknown",
-            authorName: "Mention Author",
-            createdAt: String(tweet.created_at || new Date().toISOString()),
-            metrics:
-              tweet.public_metrics && typeof tweet.public_metrics === "object"
-                ? {
-                    replies: Number(
-                      (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
-                    ),
-                    reposts: Number(
-                      (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
-                    ),
-                    likes: Number(
-                      (tweet.public_metrics as Record<string, unknown>).like_count || 0,
-                    ),
-                    bookmarks: Number(
-                      (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
-                    ),
-                    impressions: Number(
-                      (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
-                    ),
-                  }
-                : undefined,
-            unread: true,
-          }));
+        query: {
+          max_results: "10",
+          expansions: "author_id",
+          "tweet.fields": "author_id,created_at,public_metrics",
+          "user.fields": "name,username",
         },
+        mapData: (body) =>
+          mapTimelineEntries(body, {
+            unread: true,
+            fallbackHandle: "@unknown",
+            fallbackName: "Mention Author",
+          }),
       });
     },
     async getUser(handle) {
@@ -768,7 +806,7 @@ async function getCacheKey(scope?: XClientScope) {
     ? await getScopedConnectedXAccountSummary(scope)
     : await getCurrentConnectedXAccountSummary();
   return JSON.stringify({
-    requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "demo",
+    requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "unavailable",
     appUserId: scope?.appUserId || null,
     expectedXUserId: scope?.expectedXUserId || null,
     methods: detected.map((method) => ({
@@ -874,6 +912,6 @@ export async function createXClient(scope?: XClientScope): Promise<XClient> {
         reason:
           runtime.requestedMode === "live"
             ? "Live X access is currently unavailable for this account. Reconnect X and retest capabilities."
-            : "X_OPERATOR_CONSOLE_MODE is not set to live. Enable live mode and connect an X account before using account actions.",
+            : "Live mode is disabled. Set X_OPERATOR_CONSOLE_MODE=live and connect an X account before using account actions.",
       });
 }

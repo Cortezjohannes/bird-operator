@@ -1,4 +1,4 @@
-export type ConsoleMode = "demo" | "live";
+export type ConsoleMode = "unavailable" | "live";
 
 export type CapabilityState = "available" | "partial" | "blocked";
 

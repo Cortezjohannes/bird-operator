@@ -9,13 +9,13 @@ export async function getConsoleRuntime(input?: {
 }) {
   const detectedAuthMethods = await getDetectedAuthMethods(input);
   const requestedMode: ConsoleMode =
-    process.env.X_OPERATOR_CONSOLE_MODE === "live" ? "live" : "demo";
+    process.env.X_OPERATOR_CONSOLE_MODE === "live" ? "live" : "unavailable";
   const configuredLiveMethods = detectedAuthMethods.filter(
     (method) => method.configured && method.canBeUsedForLiveTests,
   );
   const isLiveReady = configuredLiveMethods.length > 0;
   const mode: ConsoleMode =
-    requestedMode === "live" && isLiveReady ? "live" : "demo";
+    requestedMode === "live" && isLiveReady ? "live" : "unavailable";
 
   return {
     mode,

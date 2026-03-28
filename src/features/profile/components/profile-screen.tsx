@@ -10,11 +10,18 @@ export function ProfileScreen({
   applied,
   revisions,
   scopeNotice,
+  liveReadState,
 }: Readonly<{
   draft: ProfileRevision | null;
   applied: ProfileRevision | null;
   revisions: ProfileRevision[];
   scopeNotice: string;
+  liveReadState: {
+    detail: string;
+    degraded: boolean;
+    avatarUrl: string | null;
+    connectedHandle: string | null;
+  };
 }>) {
   const [name, setName] = useState(draft?.name || "");
   const [bio, setBio] = useState(draft?.bio || "");
@@ -180,6 +187,17 @@ export function ProfileScreen({
           </section>
         ) : null}
 
+        <section
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            liveReadState.degraded
+              ? "border-orange-400/20 bg-orange-400/10 text-orange-100"
+              : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
+          }`}
+        >
+          {liveReadState.connectedHandle ? `${liveReadState.connectedHandle}: ` : ""}
+          {liveReadState.detail}
+        </section>
+
         <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-3xl border border-white/8 bg-panel/95 p-4">
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent">Editor</p>
@@ -230,9 +248,18 @@ export function ProfileScreen({
               <div className="mt-4 overflow-hidden rounded-3xl border border-white/8 bg-panel-strong/85">
                 <div className="h-24 bg-[linear-gradient(120deg,rgba(14,165,233,0.45),rgba(249,115,22,0.35),rgba(15,23,42,0.7))]" />
                 <div className="px-4 pb-4">
-                  <div className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#09111d] bg-white/10 text-xs text-slate-200">
-                    avatar
-                  </div>
+                  {liveReadState.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={liveReadState.avatarUrl}
+                      alt="Connected X profile avatar"
+                      className="-mt-7 h-14 w-14 rounded-full border-4 border-[#09111d] bg-white/10 object-cover"
+                    />
+                  ) : (
+                    <div className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#09111d] bg-white/10 text-xs text-slate-200">
+                      avatar
+                    </div>
+                  )}
                   <h2 className="mt-3 text-lg font-semibold text-white">{applied?.name || latestRevision?.name || "Draft profile"}</h2>
                   <p className="mt-2 text-sm leading-7 text-slate-300">{applied?.bio || latestRevision?.bio || "No bio yet."}</p>
                   <dl className="mt-4 space-y-2 text-sm text-slate-400">

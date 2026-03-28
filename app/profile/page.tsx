@@ -11,6 +11,7 @@ export default async function ProfilePage() {
       applied={state.applied}
       revisions={state.revisions}
       scopeNotice={state.scopeNotice}
+      liveReadState={state.liveReadState}
     />
   );
 }
