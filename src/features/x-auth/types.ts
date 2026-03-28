@@ -6,6 +6,7 @@ export type XAuthMethod =
   | "none";
 
 export type XCapability =
+  | "read_user"
   | "read_timeline"
   | "read_mentions"
   | "post_tweet"

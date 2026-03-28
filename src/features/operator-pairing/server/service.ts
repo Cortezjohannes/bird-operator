@@ -106,6 +106,7 @@ const operatorApprovalActionMap: Partial<Record<XCapability, ApprovalActionType>
 const capabilityByExecutionAction: Partial<Record<ExecutionActionType, XCapability>> = {
   getTimeline: "read_timeline",
   getMentions: "read_mentions",
+  getUser: "read_user",
   createPost: "post_tweet",
   createReply: "reply_tweet",
   createQuote: "quote_tweet",
@@ -897,6 +898,25 @@ function isOwnerOnlyExecutionAction(action: string) {
   return !getExecutionCapability(action as ExecutionActionType);
 }
 
+function getExecutionTargetType(
+  action: ExecutionActionType,
+  capability: XCapability,
+): "tweet" | "user" | "profile" | "timeline" | "mention" {
+  if (action === "getUser" || capability.includes("follow")) {
+    return "user";
+  }
+
+  if (capability.includes("profile")) {
+    return "profile";
+  }
+
+  if (capability.startsWith("read_")) {
+    return capability === "read_mentions" ? "mention" : "timeline";
+  }
+
+  return "tweet";
+}
+
 async function queueOperatorApproval(input: {
   session: OperatorSession;
   capability: XCapability;
@@ -970,7 +990,7 @@ export async function executeApprovedOperatorAction(input: {
     actor: input.reviewer || session.operator_instance_id,
     actorType: input.reviewer ? "owner" : "operator",
     actionType: `operator.${input.action}`,
-    targetType: capability.startsWith("read_") ? "timeline" : capability.includes("profile") ? "profile" : capability.includes("follow") ? "user" : "tweet",
+    targetType: getExecutionTargetType(input.action, capability),
     payloadSummary: `Executed ${capabilityLabels[capability]} for ${session.operator_label}.`,
     resultStatus: result.ok ? "success" : "failed",
     resultExcerpt: result.ok
@@ -1041,13 +1061,7 @@ export async function executeOperatorSessionAction(input: {
     await logOperatorAction({
       actor: session.operator_instance_id,
       actionType: `operator.${input.action}`,
-      targetType: capability.includes("profile")
-        ? "profile"
-        : capability.includes("follow")
-          ? "user"
-          : capability.startsWith("read_")
-            ? "timeline"
-            : "tweet",
+      targetType: getExecutionTargetType(input.action, capability),
       payloadSummary: `Attempted ${capabilityLabels[capability]} without a grant.`,
       resultStatus: "skipped",
       resultExcerpt: "Capability is not granted for this operator session.",
@@ -1090,15 +1104,7 @@ export async function executeOperatorSessionAction(input: {
   await logOperatorAction({
     actor: session.operator_instance_id,
     actionType: `operator.${input.action}`,
-    targetType: capability.includes("profile")
-      ? "profile"
-      : capability.includes("follow")
-        ? "user"
-        : capability.startsWith("read_")
-          ? capability === "read_mentions"
-            ? "mention"
-            : "timeline"
-          : "tweet",
+    targetType: getExecutionTargetType(input.action, capability),
     payloadSummary: `Executed ${capabilityLabels[capability]} in ${session.mode} mode.`,
     resultStatus: result.ok ? "success" : "failed",
     resultExcerpt: result.ok ? "Operator action executed through the app backend." : result.error.message,

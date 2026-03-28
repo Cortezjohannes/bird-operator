@@ -1,6 +1,7 @@
 import type { XCapability, XAuthMethod } from "@/src/features/x-auth/types";
 
 export const capabilityOrder: XCapability[] = [
+  "read_user",
   "read_timeline",
   "read_mentions",
   "post_tweet",
@@ -17,6 +18,7 @@ export const capabilityOrder: XCapability[] = [
 ];
 
 export const capabilityLabels: Record<XCapability, string> = {
+  read_user: "Read user profile",
   read_timeline: "Read timeline",
   read_mentions: "Read mentions",
   post_tweet: "Post tweet",
@@ -33,6 +35,7 @@ export const capabilityLabels: Record<XCapability, string> = {
 };
 
 export const capabilityAuthPreference: Record<XCapability, XAuthMethod[]> = {
+  read_user: ["oauth2_user", "bearer", "oauth1"],
   read_timeline: ["oauth2_user", "oauth1"],
   read_mentions: ["oauth2_user", "oauth1"],
   post_tweet: ["oauth2_user", "oauth1"],
