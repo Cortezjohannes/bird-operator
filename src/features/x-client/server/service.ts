@@ -886,12 +886,23 @@ function createCapabilityResult(
   capability: XCapability,
   result: XServiceResult<unknown>,
 ): CapabilityTestResult {
-  const treatedAsSupported =
+  const normalizedMessage = result.ok ? "" : result.error.message.toLowerCase();
+  const capabilitySpecificSupportSignal =
     !result.ok &&
-    [400, 404, 409, 422].includes(result.error.status) &&
-    !["auth_failed", "forbidden", "auth_unavailable", "auth_not_configured"].includes(
-      result.error.code,
-    );
+    ((capability === "post_tweet" &&
+      normalizedMessage.includes("duplicate content")) ||
+      (capability === "reply_tweet" &&
+        normalizedMessage.includes("reply to this conversation is not allowed")) ||
+      (capability === "quote_tweet" &&
+        normalizedMessage.includes("quoting this post is not allowed")));
+
+  const treatedAsSupported =
+    capabilitySpecificSupportSignal ||
+    (!result.ok &&
+      [400, 404, 409, 422].includes(result.error.status) &&
+      !["auth_failed", "forbidden", "auth_unavailable", "auth_not_configured"].includes(
+        result.error.code,
+      ));
 
   return {
     capability,
