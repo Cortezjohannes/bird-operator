@@ -1,15 +1,15 @@
 import "server-only";
 
 const secretEnvKeys = [
+  "APP_SESSION_SECRET",
   "X_APP_KEY",
   "X_APP_SECRET",
   "X_ACCESS_TOKEN",
   "X_ACCESS_TOKEN_SECRET",
-  "X_OAUTH2_ACCESS_TOKEN",
-  "X_OAUTH2_REFRESH_TOKEN",
   "X_BEARER_TOKEN",
   "X_CLIENT_ID",
   "X_CLIENT_SECRET",
+  "X_TOKEN_ENCRYPTION_KEY",
 ] as const;
 
 function escapeRegExp(value: string) {

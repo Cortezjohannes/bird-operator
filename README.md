@@ -5,6 +5,7 @@ X Operator Console is a dark, dense operator workspace for running an X/Twitter 
 The repo is public-safe by design:
 
 - demo mode is the default
+- the app is protected behind owner authentication
 - live mode only activates from local env vars
 - secrets stay server-side
 - seeded data is generic
@@ -26,6 +27,9 @@ It is an operator console with a mission-control feel:
 ## Features
 
 - Demo-first Next.js app with dark operator UI
+- Owner authentication with secure HTTP-only session cookies
+- Hosted X OAuth connect flow with server-side encrypted token persistence
+- Secure operator pairing requests with approval links, backup codes, session leases, and revocation
 - Server-only auth abstraction for OAuth 1.0a, OAuth 2.0 user tokens, bearer token, and client credentials
 - Capability diagnostics with real probe results and sanitized errors
 - Internal X client abstraction for reads, posting, engagement actions, profile mutations, and capability checks
@@ -58,15 +62,40 @@ Static placeholders are included so the repo reads cleanly on GitHub before real
    cp .env.example .env.local
    ```
 
-3. Start the app.
+3. Configure app authentication in `.env.local`.
+
+   Required:
+
+   - `APP_SESSION_SECRET`
+   - `APP_OWNER_EMAIL`
+   - `APP_OWNER_PASSWORD_HASH`
+
+   Optional but recommended:
+
+   - `APP_BASE_URL`
+   - `APP_SESSION_TTL_HOURS`
+
+4. If you want hosted live X connectivity, also configure:
+
+   - `X_CLIENT_ID`
+   - `X_CLIENT_SECRET`
+   - `X_TOKEN_ENCRYPTION_KEY`
+   - `X_OPERATOR_CONSOLE_MODE=live`
+
+5. Optional operator pairing TTL controls:
+
+   - `OPERATOR_PAIRING_REQUEST_TTL_MINUTES`
+   - `OPERATOR_SESSION_TTL_HOURS`
+
+6. Start the app.
 
    ```bash
    npm run dev
    ```
 
-4. Open `http://localhost:3000`.
+7. Open `http://localhost:3000` and sign in as the owner user.
 
-5. Optional verification:
+8. Optional verification:
 
    ```bash
    npm run lint
@@ -83,7 +112,8 @@ What you get in demo mode:
 - realistic queue, approval, profile, log, and analytics states
 - working local draft and triage persistence
 - no real outbound account mutations
-- no credentials required
+- no X credentials required
+- app login still required
 
 The app stays in demo mode when live configuration is missing or incomplete.
 
@@ -94,11 +124,13 @@ Live mode is opt-in and local-only.
 Requirements:
 
 - set `X_OPERATOR_CONSOLE_MODE=live`
-- provide a complete local credential set for at least one supported auth strategy
+- configure hosted OAuth with `X_CLIENT_ID`, `X_CLIENT_SECRET`, `APP_BASE_URL`, and `X_TOKEN_ENCRYPTION_KEY`
+- connect an X account from the diagnostics page
 
 Notes:
 
 - capabilities come from actual server-side tests, not token presence alone
+- connected-account tokens are stored server-side and encrypted at rest when hosted OAuth is enabled
 - raw secrets never go to the client
 - if env vars are incomplete, the runtime falls back safely to demo mode
 - browser fallback is only an architectural placeholder in the current repo
@@ -107,11 +139,13 @@ Notes:
 
 Key slices:
 
+- `src/features/auth/`: app auth, secure sessions, owner login, and route protection
 - `src/features/x-auth/`: auth detection and capability diagnostics
 - `src/features/x-client/`: internal X API abstraction and sanitized error handling
 - `src/features/execution/`: normalized execution layer with future fallback hooks
 - `src/features/drafts/`: compose, queue, and post flows
 - `src/features/approvals/`: policy gating and approval records
+- `src/features/operator-pairing/`: pairing requests, approvals, session leases, and revocation
 - `src/features/profile/`: profile surface revisions and apply logic
 - `src/features/logs/`: public-safe action logs
 - `src/features/analytics/`: starter analytics views

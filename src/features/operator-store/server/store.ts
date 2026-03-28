@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { defaultApprovalPolicy } from "@/src/features/approvals/server/policy";
+import { getDefaultGrantedCapabilities } from "@/src/features/operator-pairing/policy";
 import type {
   ApprovalPolicySettings,
   ApprovalRequest,
@@ -20,7 +21,13 @@ import type {
   TriageLabel,
 } from "@/src/features/operator-store/types";
 import type { ActionLog } from "@/src/features/logs/types";
+import type {
+  OperatorPairingRequest,
+  OperatorSession,
+} from "@/src/features/operator-pairing/types";
 import type { ProfileRevision, ProfileState } from "@/src/features/profile/types";
+import type { StoredConnectedXAccount } from "@/src/features/x-auth/types";
+import { capabilityOrder } from "@/src/features/x-auth/capabilities";
 
 const dataDir = path.join(process.cwd(), "data");
 const storePath = path.join(dataDir, "operator-store.json");
@@ -41,7 +48,59 @@ const defaultSnapshot: OperatorStoreSnapshot = {
   executionSettings: {
     browserFallbackEnabled: false,
   },
+  connectedXAccounts: {},
+  pairingRequests: {},
+  operatorSessions: {},
 };
+
+function normalizeRequestedCapabilities(input: unknown) {
+  const requested = Array.isArray(input) ? new Set(input) : new Set();
+  return capabilityOrder.filter((capability) => requested.has(capability));
+}
+
+function getDefaultApprovalCaps(grantedCapabilities: string[]) {
+  return grantedCapabilities.filter((capability) => {
+    return (
+      capability === "post_tweet" ||
+      capability === "reply_tweet" ||
+      capability === "quote_tweet" ||
+      capability === "follow_user" ||
+      capability === "update_profile_text" ||
+      capability === "update_profile_media"
+    );
+  });
+}
+
+function normalizeOperatorSessionRecord(record: OperatorSession) {
+  const requestedCapabilities = normalizeRequestedCapabilities(record.requested_capabilities);
+  const mode =
+    record.mode === "trusted_operator" ||
+    record.mode === "custom" ||
+    record.mode === "approval_required"
+      ? record.mode
+      : "approval_required";
+  const grantedCapabilities = normalizeRequestedCapabilities(record.granted_capabilities);
+  const normalizedGranted =
+    grantedCapabilities.length > 0
+      ? grantedCapabilities.filter((capability) => requestedCapabilities.includes(capability))
+      : getDefaultGrantedCapabilities(requestedCapabilities);
+  const approvalRequiredCapabilities = normalizeRequestedCapabilities(
+    record.approval_required_capabilities,
+  ).filter((capability) => normalizedGranted.includes(capability));
+
+  return {
+    ...record,
+    requested_capabilities: requestedCapabilities,
+    mode,
+    granted_capabilities: normalizedGranted,
+    approval_required_capabilities:
+      mode === "trusted_operator"
+        ? []
+        : approvalRequiredCapabilities.length > 0
+          ? approvalRequiredCapabilities
+          : getDefaultApprovalCaps(normalizedGranted),
+  };
+}
 
 async function ensureStoreFile() {
   await fs.mkdir(dataDir, { recursive: true });
@@ -75,6 +134,9 @@ export async function readOperatorStore() {
       executionSettings: parsed.executionSettings || {
         browserFallbackEnabled: false,
       },
+      connectedXAccounts: parsed.connectedXAccounts || {},
+      pairingRequests: parsed.pairingRequests || {},
+      operatorSessions: parsed.operatorSessions || {},
     } satisfies OperatorStoreSnapshot;
   } catch {
     return defaultSnapshot;
@@ -238,4 +300,79 @@ export async function updateExecutionSettings(settings: Partial<ExecutionSetting
   };
   await writeOperatorStore(snapshot);
   return snapshot.executionSettings;
+}
+
+export async function getConnectedXAccount(appUserId: string) {
+  const snapshot = await readOperatorStore();
+  return snapshot.connectedXAccounts[appUserId] || null;
+}
+
+export async function upsertConnectedXAccount(record: StoredConnectedXAccount) {
+  const snapshot = await readOperatorStore();
+  snapshot.connectedXAccounts[record.appUserId] = record;
+  await writeOperatorStore(snapshot);
+  return record;
+}
+
+export async function deleteConnectedXAccount(appUserId: string) {
+  const snapshot = await readOperatorStore();
+  const existing = snapshot.connectedXAccounts[appUserId] || null;
+  if (existing) {
+    delete snapshot.connectedXAccounts[appUserId];
+    await writeOperatorStore(snapshot);
+  }
+  return existing;
+}
+
+export async function listPairingRequests() {
+  const snapshot = await readOperatorStore();
+  return Object.values(snapshot.pairingRequests).sort((a, b) => {
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  }).map((record) => ({
+    ...record,
+    requested_capabilities: normalizeRequestedCapabilities(record.requested_capabilities),
+  }));
+}
+
+export async function getPairingRequestById(id: string) {
+  const snapshot = await readOperatorStore();
+  return snapshot.pairingRequests[id]
+    ? {
+        ...snapshot.pairingRequests[id],
+        requested_capabilities: normalizeRequestedCapabilities(
+          snapshot.pairingRequests[id].requested_capabilities,
+        ),
+      }
+    : null;
+}
+
+export async function upsertPairingRequest(record: OperatorPairingRequest) {
+  const snapshot = await readOperatorStore();
+  snapshot.pairingRequests[record.id] = {
+    ...record,
+    requested_capabilities: normalizeRequestedCapabilities(record.requested_capabilities),
+  };
+  await writeOperatorStore(snapshot);
+  return snapshot.pairingRequests[record.id];
+}
+
+export async function listOperatorSessions() {
+  const snapshot = await readOperatorStore();
+  return Object.values(snapshot.operatorSessions).sort((a, b) => {
+    return new Date(b.paired_at).getTime() - new Date(a.paired_at).getTime();
+  }).map(normalizeOperatorSessionRecord);
+}
+
+export async function getOperatorSessionById(id: string) {
+  const snapshot = await readOperatorStore();
+  return snapshot.operatorSessions[id]
+    ? normalizeOperatorSessionRecord(snapshot.operatorSessions[id])
+    : null;
+}
+
+export async function upsertOperatorSession(record: OperatorSession) {
+  const snapshot = await readOperatorStore();
+  snapshot.operatorSessions[record.id] = normalizeOperatorSessionRecord(record);
+  await writeOperatorStore(snapshot);
+  return snapshot.operatorSessions[record.id];
 }

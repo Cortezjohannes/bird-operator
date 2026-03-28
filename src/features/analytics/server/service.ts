@@ -58,7 +58,7 @@ function groupDaily(logs: Array<{ timestamp: string }>) {
 }
 
 export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
-  const runtime = getConsoleRuntime();
+  const runtime = await getConsoleRuntime();
   const logs = await getActionLogs();
   const drafts = await getDrafts();
 

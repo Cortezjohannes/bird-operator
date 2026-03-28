@@ -11,8 +11,8 @@ import {
 import { getConsoleSnapshot } from "@/src/features/console/server/snapshot";
 import Link from "next/link";
 
-export default function Home() {
-  const snapshot = getConsoleSnapshot();
+export default async function Home() {
+  const snapshot = await getConsoleSnapshot();
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_32%),linear-gradient(180deg,_#07111d_0%,_#04070c_55%,_#020409_100%)] px-4 py-4 text-slate-100 sm:px-6 lg:px-8">
@@ -84,6 +84,12 @@ export default function Home() {
               className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
             >
               Execution fallback
+            </Link>
+            <Link
+              href="/settings/operators"
+              className="rounded-full border border-white/8 bg-white/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300 transition hover:border-accent/40 hover:bg-accent/10"
+            >
+              Operators
             </Link>
           </div>
         </div>

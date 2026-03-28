@@ -33,6 +33,8 @@ export interface OAuth2TokenSet {
   refreshToken?: string;
   clientId?: string;
   clientSecret?: string;
+  expiresAt?: string | null;
+  scopes?: string[];
 }
 
 export interface BearerTokenConfig {
@@ -54,6 +56,66 @@ export interface DetectedAuthMethod {
   summary: string;
 }
 
+export interface StoredTokenEnvelope {
+  version: "v1";
+  algorithm: "aes-256-gcm";
+  iv: string;
+  ciphertext: string;
+  tag: string;
+  keyId: "env";
+}
+
+export interface StoredOAuth2TokenBundle {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: string | null;
+  scopes: string[];
+  tokenType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TokenHealthStatus =
+  | "missing"
+  | "healthy"
+  | "expiring"
+  | "expired"
+  | "error";
+
+export interface XTokenHealthSummary {
+  status: TokenHealthStatus;
+  exists: boolean;
+  hasRefreshToken: boolean;
+  expiresAt: string | null;
+  scopes: string[];
+  authStrategy: XAuthMethod;
+  lastValidatedAt: string | null;
+  encryptionEnabled: boolean;
+}
+
+export interface StoredConnectedXAccount {
+  appUserId: string;
+  xUserId: string;
+  username: string;
+  displayName: string;
+  connectedAt: string;
+  lastValidatedAt: string | null;
+  authMethodsAvailable: XAuthMethod[];
+  tokenStatus: XTokenHealthSummary;
+  tokenEnvelope: StoredTokenEnvelope;
+}
+
+export interface ConnectedXAccountSummary {
+  appUserId: string;
+  xUserId: string;
+  username: string;
+  displayName: string;
+  connectedAt: string;
+  lastValidatedAt: string | null;
+  authMethodsAvailable: XAuthMethod[];
+  tokenStatus: XTokenHealthSummary;
+}
+
 export interface CapabilityTestResult {
   capability: XCapability;
   supported: boolean;
@@ -70,4 +132,9 @@ export interface AuthStatusPayload {
   hasPartialLiveConfig: boolean;
   detectedAuthMethods: DetectedAuthMethod[];
   liveProbeSummary: string;
+  connectedAccount: ConnectedXAccountSummary | null;
+  oauthConfigured: boolean;
+  callbackUrl: string | null;
+  tokenHealth: XTokenHealthSummary | null;
+  scopesSummary: string[];
 }
