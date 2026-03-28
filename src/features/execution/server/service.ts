@@ -23,10 +23,8 @@ function getFallbackStatus(enabled: boolean): ExecutionStatusPanel {
   return {
     enabled,
     available: false,
-    provider: "placeholder",
-    headline: enabled
-      ? "Browser fallback is armed but not installed."
-      : "Browser fallback is disabled.",
+    provider: "fallback_interface",
+    headline: "Browser fallback is not installed.",
     detail:
       "This repo exposes a server-only fallback interface and status plumbing, but it does not ship any browser session, cookies, or Playwright automation.",
     nextStep:
@@ -35,10 +33,10 @@ function getFallbackStatus(enabled: boolean): ExecutionStatusPanel {
 }
 
 export async function getExecutionSettingsSnapshot(): Promise<ExecutionSettingsSnapshot> {
-  const settings = await getExecutionSettings();
+  await getExecutionSettings();
   return {
-    browserFallbackEnabled: settings.browserFallbackEnabled,
-    status: getFallbackStatus(settings.browserFallbackEnabled),
+    browserFallbackEnabled: false,
+    status: getFallbackStatus(false),
   };
 }
 
@@ -46,25 +44,29 @@ export async function setExecutionSettings(input: {
   browserFallbackEnabled: boolean;
 }): Promise<ExecutionSettingsSnapshot> {
   const settings = await updateExecutionSettings({
-    browserFallbackEnabled: input.browserFallbackEnabled,
+    browserFallbackEnabled: false,
   });
 
   await recordActionLog({
     actor: "operator",
     actionType: "settings.execution",
     targetType: "settings",
-    payloadSummary: `Browser fallback ${settings.browserFallbackEnabled ? "enabled" : "disabled"}`,
-    resultStatus: "success",
-    resultExcerpt: "Execution settings updated.",
+    payloadSummary: input.browserFallbackEnabled
+      ? "Rejected browser fallback enable request."
+      : "Browser fallback remains disabled.",
+    resultStatus: input.browserFallbackEnabled ? "skipped" : "success",
+    resultExcerpt: input.browserFallbackEnabled
+      ? "Browser fallback is not shipped in this product build."
+      : "Execution settings updated.",
     authMethod: "system",
     fallbackAvailable: false,
     fallbackAttempted: false,
-    fallbackResult: settings.browserFallbackEnabled ? "placeholder" : "not_attempted",
+    fallbackResult: "not_attempted",
   });
 
   return {
     browserFallbackEnabled: settings.browserFallbackEnabled,
-    status: getFallbackStatus(settings.browserFallbackEnabled),
+    status: getFallbackStatus(false),
   };
 }
 
@@ -172,13 +174,13 @@ async function executeFallbackPlaceholder<T>(
     attempted: enabled && apiResult.mode === "live" && !apiResult.ok,
     result:
       enabled && apiResult.mode === "live" && !apiResult.ok
-        ? "placeholder"
+        ? "not_available"
         : enabled
           ? "not_attempted"
           : "not_available",
     message:
       enabled && apiResult.mode === "live" && !apiResult.ok
-        ? "Browser fallback was enabled, but only a placeholder executor is installed."
+        ? "Browser fallback was enabled, but no installed fallback executor is available."
         : enabled
           ? "Browser fallback is available in settings but was not needed for this action."
           : "Browser fallback is disabled.",
@@ -190,15 +192,22 @@ async function executeFallbackPlaceholder<T>(
 export async function executeAction<TAction extends ExecutionActionType>(
   action: TAction,
   payload: ExecutionPayloadMap[TAction],
+  options?: {
+    xScope?: {
+      appUserId?: string | null;
+      expectedXUserId?: string | null;
+      strictLive?: boolean;
+    };
+  },
 ): Promise<NormalizedActionResult<
   ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
 >> {
-  const settings = await getExecutionSettings();
-  const client = await createXClient();
+  await getExecutionSettings();
+  const client = await createXClient(options?.xScope);
   const apiResult = (await executeApiAction(client, action, payload)) as XServiceResult<
     ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
   >;
-  return executeFallbackPlaceholder(action, apiResult, settings.browserFallbackEnabled);
+  return executeFallbackPlaceholder(action, apiResult, false);
 }
 
 export async function logExecutionOutcome(input: {
@@ -223,8 +232,8 @@ export async function logExecutionOutcome(input: {
     resultStatus: input.result.ok ? "success" : "failed",
     resultExcerpt: sanitizeErrorMessage(excerpt),
     authMethod:
-      input.result.metadata.mode === "demo"
-        ? "demo"
+      input.result.metadata.mode === "unavailable"
+        ? "none"
         : input.result.metadata.authMethod,
     relatedTweetId: input.relatedTweetId || null,
     fallbackAvailable: input.result.metadata.fallback.available,
@@ -235,6 +244,6 @@ export async function logExecutionOutcome(input: {
 
 export function liveExecutionAllowed() {
   return getConsoleRuntime().then((runtime) => {
-    return runtime.mode === "demo" || runtime.isLiveReady;
+    return runtime.isLiveReady;
   });
 }

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { appendActionLog, listActionLogs } from "@/src/features/operator-store/server/store";
 import { sanitizeErrorMessage } from "@/src/features/x-auth/server/sanitize";
 import type {
@@ -13,89 +12,6 @@ import type {
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
-
-const demoLogs: ActionLog[] = [
-  {
-    id: "action-demo-1",
-    timestamp: "2026-03-28T02:10:00.000Z",
-    actor: "operator",
-    actor_type: "operator",
-    action_type: "createPost",
-    target_type: "tweet",
-    target_id: "demo-post-001",
-    payload_summary: "Posted a launch room follow-up from the demo queue.",
-    result_status: "success",
-    result_excerpt: "Demo post created successfully.",
-    auth_method: "demo",
-    related_tweet_id: "demo-post-001",
-    operator_session_id: "op-session-demo",
-    operator_session_mode: "trusted_operator",
-    execution_path: "auto_executed",
-    fallback_available: false,
-    fallback_attempted: false,
-    fallback_result: "not_attempted",
-  },
-  {
-    id: "action-demo-2",
-    timestamp: "2026-03-28T02:24:00.000Z",
-    actor: "operator",
-    actor_type: "operator",
-    action_type: "approval_requested",
-    target_type: "approval",
-    target_id: "approval-demo-1",
-    payload_summary: "Queued an operator reply for approval review.",
-    result_status: "queued",
-    result_excerpt: "Reply draft sent to approval lane.",
-    auth_method: "system",
-    related_tweet_id: "demo-mention-1",
-    operator_session_id: "op-session-demo-approval",
-    operator_session_mode: "approval_required",
-    execution_path: "approval_gated",
-    fallback_available: false,
-    fallback_attempted: false,
-    fallback_result: "not_attempted",
-  },
-  {
-    id: "action-demo-3",
-    timestamp: "2026-03-28T02:41:00.000Z",
-    actor: "approver",
-    actor_type: "owner",
-    action_type: "profile_edit",
-    target_type: "profile",
-    target_id: "profile-demo-1",
-    payload_summary: "Applied a profile surface revision after review.",
-    result_status: "success",
-    result_excerpt: "Profile surface updated in demo mode.",
-    auth_method: "demo",
-    related_tweet_id: null,
-    operator_session_id: null,
-    operator_session_mode: null,
-    execution_path: "direct",
-    fallback_available: false,
-    fallback_attempted: false,
-    fallback_result: "not_attempted",
-  },
-  {
-    id: "action-demo-4",
-    timestamp: "2026-03-28T02:57:00.000Z",
-    actor: "operator",
-    actor_type: "owner",
-    action_type: "settings.execution",
-    target_type: "settings",
-    target_id: null,
-    payload_summary: "Browser fallback enabled for future local-only automation.",
-    result_status: "success",
-    result_excerpt: "Fallback remains placeholder-only until a Playwright executor is installed.",
-    auth_method: "system",
-    related_tweet_id: null,
-    operator_session_id: null,
-    operator_session_mode: null,
-    execution_path: "direct",
-    fallback_available: false,
-    fallback_attempted: false,
-    fallback_result: "placeholder",
-  },
-];
 
 export async function recordActionLog(input: {
   actor?: string;
@@ -141,12 +57,7 @@ export async function recordActionLog(input: {
 }
 
 export async function getActionLogs() {
-  const stored = await listActionLogs();
-  const runtime = await getConsoleRuntime();
-  if (runtime.mode === "demo" && stored.length === 0) {
-    return demoLogs;
-  }
-  return stored;
+  return listActionLogs();
 }
 
 export async function filterActionLogs(filters: ActionLogFilters) {

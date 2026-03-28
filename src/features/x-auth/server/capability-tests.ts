@@ -37,7 +37,7 @@ export async function getAuthStatus(): Promise<AuthStatusPayload> {
     liveProbeSummary:
       runtime.mode === "live"
         ? "Live capability probes are active and run server-side against X endpoints for the connected account."
-        : "Demo mode is active. Switch the runtime to live and connect an X account to run real capability probes.",
+        : "Live capability probes are unavailable. Enable live mode and connect an X account to run real checks.",
     connectedAccount,
     oauthConfigured: hosting.configured && hosting.encryptionEnabled,
     callbackUrl: hosting.callbackUrl,

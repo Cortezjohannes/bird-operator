@@ -3,8 +3,9 @@ import "server-only";
 import { capabilityAuthPreference, capabilityOrder } from "@/src/features/x-auth/capabilities";
 import { recordActionLog } from "@/src/features/logs/server/service";
 import {
+  getDetectedAuthMethods,
   getCurrentConnectedXAccountSummary,
-  getDetectedAuthMethodsForCurrentUser,
+  getScopedConnectedXAccountSummary,
 } from "@/src/features/x-auth/server/connected-account";
 import type {
   CapabilityTestResult,
@@ -13,20 +14,12 @@ import type {
 } from "@/src/features/x-auth/types";
 import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { createLogEntry, createNormalizedError } from "@/src/features/x-client/server/errors";
-import {
-  createDemoPost,
-  demoMentions,
-  demoTimeline,
-  demoUsers,
-} from "@/src/features/x-client/server/demo-data";
 import { performXRequest } from "@/src/features/x-client/server/http";
 import { emitXLog } from "@/src/features/x-client/server/logger";
 import type {
   XClient,
   XNormalizedError,
   XPostRecord,
-  XProfileMediaInput,
-  XProfileTextInput,
   XServiceResult,
   XTimelineEntry,
   XUserSummary,
@@ -37,6 +30,12 @@ interface CachedCapabilityResults {
   results: CapabilityTestResult[];
 }
 
+interface XClientScope {
+  appUserId?: string | null;
+  expectedXUserId?: string | null;
+  strictLive?: boolean;
+}
+
 declare global {
   var __xOperatorCapabilityCache: CachedCapabilityResults | undefined;
 }
@@ -45,7 +44,7 @@ function formatResult<T>(
   input:
     | {
         ok: true;
-        mode: "demo" | "live";
+        mode: "unavailable" | "live";
         authStrategy: XAuthMethod;
         operation: string;
         endpointLabel: string;
@@ -60,7 +59,7 @@ function formatResult<T>(
       }
     | {
         ok: false;
-        mode: "demo" | "live";
+        mode: "unavailable" | "live";
         authStrategy: XAuthMethod;
         operation: string;
         endpointLabel: string;
@@ -140,8 +139,158 @@ function extractData<T>(body: unknown, fallback: T): T {
   return fallback;
 }
 
-async function getConfiguredLiveStrategies() {
-  return (await getDetectedAuthMethodsForCurrentUser())
+function extractUsersById(body: unknown) {
+  const includes =
+    body && typeof body === "object" && "includes" in body
+      ? (body as { includes?: unknown }).includes
+      : null;
+  const users =
+    includes && typeof includes === "object" && "users" in includes
+      ? (includes as { users?: unknown }).users
+      : null;
+  const userMap = new Map<string, { handle: string; name: string }>();
+
+  if (!Array.isArray(users)) {
+    return userMap;
+  }
+
+  for (const entry of users) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const user = entry as Record<string, unknown>;
+    const id = typeof user.id === "string" ? user.id : "";
+    if (!id) {
+      continue;
+    }
+
+    userMap.set(id, {
+      handle: `@${String(user.username || "unknown")}`,
+      name: String(user.name || user.username || "Unknown user"),
+    });
+  }
+
+  return userMap;
+}
+
+function mapTimelineEntries(body: unknown, options: {
+  unread: boolean;
+  fallbackHandle: string;
+  fallbackName: string;
+}) {
+  const tweets = extractData<Array<Record<string, unknown>>>(body, []);
+  const usersById = extractUsersById(body);
+
+  return tweets.map((tweet) => {
+    const authorId = typeof tweet.author_id === "string" ? tweet.author_id : "";
+    const author = usersById.get(authorId);
+
+    return {
+      id: String(tweet.id || ""),
+      text: String(tweet.text || ""),
+      authorHandle: author?.handle || options.fallbackHandle,
+      authorName: author?.name || options.fallbackName,
+      createdAt: String(tweet.created_at || new Date().toISOString()),
+      metrics:
+        tweet.public_metrics && typeof tweet.public_metrics === "object"
+          ? {
+              replies: Number(
+                (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
+              ),
+              reposts: Number(
+                (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
+              ),
+              likes: Number(
+                (tweet.public_metrics as Record<string, unknown>).like_count || 0,
+              ),
+              bookmarks: Number(
+                (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
+              ),
+              impressions: Number(
+                (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
+              ),
+            }
+          : undefined,
+      unread: options.unread,
+    };
+  });
+}
+
+function createUnavailableClient(input?: {
+  mode?: "unavailable" | "live";
+  reason?: string;
+}): XClient {
+  const mode = input?.mode || "unavailable";
+  const reason =
+    input?.reason ||
+    "Live X access is unavailable. Connect a valid X account and confirm the required auth scopes.";
+
+  function unavailable<T>(operation: string, endpointLabel: string): XServiceResult<T> {
+    return formatResult<T>({
+      ok: false,
+      mode,
+      authStrategy: "none",
+      operation,
+      endpointLabel,
+      error: createNormalizedError({
+        code: "live_unavailable",
+        status: 503,
+        endpointLabel,
+        authStrategy: "none",
+        message: reason,
+      }),
+    });
+  }
+
+  return {
+    async getTimeline() {
+      return unavailable("getTimeline", "Get timeline");
+    },
+    async getMentions() {
+      return unavailable("getMentions", "Get mentions");
+    },
+    async getUser() {
+      return unavailable("getUser", "Get user by handle");
+    },
+    async createPost() {
+      return unavailable("createPost", "Create post");
+    },
+    async createReply() {
+      return unavailable("createReply", "Create reply");
+    },
+    async createQuote() {
+      return unavailable("createQuote", "Create quote post");
+    },
+    async likeTweet() {
+      return unavailable("likeTweet", "Like tweet");
+    },
+    async repostTweet() {
+      return unavailable("repostTweet", "Repost tweet");
+    },
+    async bookmarkTweet() {
+      return unavailable("bookmarkTweet", "Bookmark tweet");
+    },
+    async followUser() {
+      return unavailable("followUser", "Follow user");
+    },
+    async unfollowUser() {
+      return unavailable("unfollowUser", "Unfollow user");
+    },
+    async updateProfileText() {
+      return unavailable("updateProfileText", "Update profile text");
+    },
+    async updateProfileMedia() {
+      return unavailable("updateProfileMedia", "Update profile media");
+    },
+    async getCapabilities() {
+      return unavailable("getCapabilities", "Capability matrix");
+    },
+  };
+}
+
+async function getConfiguredLiveStrategies(scope?: XClientScope) {
+  return (await getDetectedAuthMethods(scope))
     .filter((method) => method.canBeUsedForLiveTests)
     .map((method) => method.key);
 }
@@ -149,8 +298,9 @@ async function getConfiguredLiveStrategies() {
 async function chooseAuthStrategy(
   capability: XCapability,
   preferred?: XAuthMethod,
+  scope?: XClientScope,
 ): Promise<XAuthMethod> {
-  const available = new Set(await getConfiguredLiveStrategies());
+  const available = new Set(await getConfiguredLiveStrategies(scope));
 
   if (preferred && available.has(preferred)) {
     return preferred;
@@ -212,10 +362,12 @@ async function executeLiveRequest<T>(input: {
   targetId?: string | null;
   payloadSummary?: string;
   relatedTweetId?: string | null;
+  authContext?: XClientScope;
 }) {
   const authStrategy = await chooseAuthStrategy(
     input.capability,
     input.preferredAuthStrategy,
+    input.authContext,
   );
 
   if (authStrategy === "none") {
@@ -266,6 +418,7 @@ async function executeLiveRequest<T>(input: {
     method: input.method,
     query: input.query,
     body: input.body,
+    authContext: input.authContext,
   });
 
   if (!response.ok) {
@@ -299,328 +452,60 @@ async function executeLiveRequest<T>(input: {
   });
 }
 
-function createDemoClient(): XClient {
-  return {
-    async getTimeline() {
-      return formatResult<XTimelineEntry[]>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "getTimeline",
-        endpointLabel: "Demo timeline",
-        status: 200,
-        data: demoTimeline,
-        message: "Returned seeded demo timeline.",
-        targetType: "timeline",
-      });
-    },
-    async getMentions() {
-      return formatResult<XTimelineEntry[]>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "getMentions",
-        endpointLabel: "Demo mentions",
-        status: 200,
-        data: demoMentions,
-        message: "Returned seeded demo mentions.",
-        targetType: "mention",
-      });
-    },
-    async getUser(handle) {
-      const normalized = handle.replace(/^@/, "");
-      const user = demoUsers[normalized];
-      if (!user) {
-        return formatResult<XUserSummary>({
-          ok: false,
-          mode: "demo",
-          authStrategy: "demo",
-          operation: "getUser",
-          endpointLabel: "Demo user lookup",
-          error: createNormalizedError({
-            code: "not_found",
-            status: 404,
-            endpointLabel: "Demo user lookup",
-            authStrategy: "demo",
-            message: `No demo user found for ${normalized}.`,
-          }),
-          targetType: "user",
-          targetId: normalized,
-          payloadSummary: `Lookup user ${normalized}`,
-        });
-      }
-      return formatResult<XUserSummary>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "getUser",
-        endpointLabel: "Demo user lookup",
-        status: 200,
-        data: user,
-        message: "Returned seeded demo user.",
-        targetType: "user",
-        targetId: user.id,
-        payloadSummary: `Lookup user ${normalized}`,
-      });
-    },
-    async createPost(text) {
-      return formatResult<XPostRecord>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "createPost",
-        endpointLabel: "Demo create post",
-        status: 200,
-        data: createDemoPost(text),
-        message: "Created seeded demo post.",
-        targetType: "tweet",
-        payloadSummary: text.slice(0, 120),
-      });
-    },
-    async createReply(tweetId, text) {
-      return formatResult<XPostRecord>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "createReply",
-        endpointLabel: "Demo create reply",
-        status: 200,
-        data: createDemoPost(`Reply to ${tweetId}: ${text}`),
-        message: "Created seeded demo reply.",
-        targetType: "tweet",
-        targetId: tweetId,
-        relatedTweetId: tweetId,
-        payloadSummary: text.slice(0, 120),
-      });
-    },
-    async createQuote(tweetId, text) {
-      return formatResult<XPostRecord>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "createQuote",
-        endpointLabel: "Demo create quote",
-        status: 200,
-        data: createDemoPost(`Quote ${tweetId}: ${text}`),
-        message: "Created seeded demo quote post.",
-        targetType: "tweet",
-        targetId: tweetId,
-        relatedTweetId: tweetId,
-        payloadSummary: text.slice(0, 120),
-      });
-    },
-    async likeTweet(tweetId) {
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "likeTweet",
-        endpointLabel: "Demo like tweet",
-        status: 200,
-        data: { liked: true, tweetId },
-        message: "Recorded seeded demo like.",
-        targetType: "tweet",
-        targetId: tweetId,
-        relatedTweetId: tweetId,
-        payloadSummary: `Like tweet ${tweetId}`,
-      });
-    },
-    async repostTweet(tweetId) {
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "repostTweet",
-        endpointLabel: "Demo repost tweet",
-        status: 200,
-        data: { reposted: true, tweetId },
-        message: "Recorded seeded demo repost.",
-        targetType: "tweet",
-        targetId: tweetId,
-        relatedTweetId: tweetId,
-        payloadSummary: `Repost tweet ${tweetId}`,
-      });
-    },
-    async bookmarkTweet(tweetId) {
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "bookmarkTweet",
-        endpointLabel: "Demo bookmark tweet",
-        status: 200,
-        data: { bookmarked: true, tweetId },
-        message: "Recorded seeded demo bookmark.",
-        targetType: "tweet",
-        targetId: tweetId,
-        relatedTweetId: tweetId,
-        payloadSummary: `Bookmark tweet ${tweetId}`,
-      });
-    },
-    async followUser(userId) {
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "followUser",
-        endpointLabel: "Demo follow user",
-        status: 200,
-        data: { following: true, userId },
-        message: "Recorded seeded demo follow.",
-        targetType: "user",
-        targetId: userId,
-        payloadSummary: `Follow user ${userId}`,
-      });
-    },
-    async unfollowUser(userId) {
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "unfollowUser",
-        endpointLabel: "Demo unfollow user",
-        status: 200,
-        data: { following: false, userId },
-        message: "Recorded seeded demo unfollow.",
-        targetType: "user",
-        targetId: userId,
-        payloadSummary: `Unfollow user ${userId}`,
-      });
-    },
-    async updateProfileText(input: XProfileTextInput) {
-      void input;
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "updateProfileText",
-        endpointLabel: "Demo update profile text",
-        status: 200,
-        data: { updated: true },
-        message: "Recorded seeded demo profile text update.",
-        targetType: "profile",
-        targetId: "profile-surface",
-        payloadSummary: "Update profile text",
-      });
-    },
-    async updateProfileMedia(input: XProfileMediaInput) {
-      void input;
-      return formatResult({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "updateProfileMedia",
-        endpointLabel: "Demo update profile media",
-        status: 200,
-        data: { updated: true },
-        message: "Recorded seeded demo profile media update.",
-        targetType: "profile",
-        targetId: "profile-surface",
-        payloadSummary: "Update profile media",
-      });
-    },
-    async getCapabilities(options) {
-      return formatResult<CapabilityTestResult[]>({
-        ok: true,
-        mode: "demo",
-        authStrategy: "demo",
-        operation: "getCapabilities",
-        endpointLabel: "Demo capability matrix",
-        status: 200,
-        data: await runCapabilityTests(options),
-        message: "Returned seeded demo capability results.",
-      });
-    },
+function createLiveClient(scope?: XClientScope): XClient {
+  const executeScopedLiveRequest = <T>(input: Parameters<typeof executeLiveRequest<T>>[0]) => {
+    return executeLiveRequest<T>({
+      ...input,
+      authContext: scope,
+    });
   };
-}
 
-function createLiveClient(): XClient {
   return {
     async getTimeline() {
-      return executeLiveRequest<XTimelineEntry[]>({
+      return executeScopedLiveRequest<XTimelineEntry[]>({
         capability: "read_timeline",
         operation: "getTimeline",
         endpointLabel: "Get timeline",
         targetType: "timeline",
         pathResolver: ({ userId }) =>
           `/2/users/${userId}/timelines/reverse_chronological`,
-        query: { max_results: "10" },
-        mapData: (body) => {
-          const tweets = extractData<Array<Record<string, unknown>>>(body, []);
-          return tweets.map((tweet) => ({
-            id: String(tweet.id || ""),
-            text: String(tweet.text || ""),
-            authorHandle: "@authenticated_user",
-            authorName: "Authenticated User",
-            createdAt: String(tweet.created_at || new Date().toISOString()),
-            metrics:
-              tweet.public_metrics && typeof tweet.public_metrics === "object"
-                ? {
-                    replies: Number(
-                      (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
-                    ),
-                    reposts: Number(
-                      (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
-                    ),
-                    likes: Number(
-                      (tweet.public_metrics as Record<string, unknown>).like_count || 0,
-                    ),
-                    bookmarks: Number(
-                      (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
-                    ),
-                    impressions: Number(
-                      (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
-                    ),
-                  }
-                : undefined,
-            unread: false,
-          }));
+        query: {
+          max_results: "10",
+          expansions: "author_id",
+          "tweet.fields": "author_id,created_at,public_metrics",
+          "user.fields": "name,username",
         },
+        mapData: (body) =>
+          mapTimelineEntries(body, {
+            unread: false,
+            fallbackHandle: "@authenticated_user",
+            fallbackName: "Authenticated User",
+          }),
       });
     },
     async getMentions() {
-      return executeLiveRequest<XTimelineEntry[]>({
+      return executeScopedLiveRequest<XTimelineEntry[]>({
         capability: "read_mentions",
         operation: "getMentions",
         endpointLabel: "Get mentions",
         targetType: "mention",
         pathResolver: ({ userId }) => `/2/users/${userId}/mentions`,
-        query: { max_results: "10" },
-        mapData: (body) => {
-          const tweets = extractData<Array<Record<string, unknown>>>(body, []);
-          return tweets.map((tweet) => ({
-            id: String(tweet.id || ""),
-            text: String(tweet.text || ""),
-            authorHandle: "@unknown",
-            authorName: "Mention Author",
-            createdAt: String(tweet.created_at || new Date().toISOString()),
-            metrics:
-              tweet.public_metrics && typeof tweet.public_metrics === "object"
-                ? {
-                    replies: Number(
-                      (tweet.public_metrics as Record<string, unknown>).reply_count || 0,
-                    ),
-                    reposts: Number(
-                      (tweet.public_metrics as Record<string, unknown>).retweet_count || 0,
-                    ),
-                    likes: Number(
-                      (tweet.public_metrics as Record<string, unknown>).like_count || 0,
-                    ),
-                    bookmarks: Number(
-                      (tweet.public_metrics as Record<string, unknown>).bookmark_count || 0,
-                    ),
-                    impressions: Number(
-                      (tweet.public_metrics as Record<string, unknown>).impression_count || 0,
-                    ),
-                  }
-                : undefined,
-            unread: true,
-          }));
+        query: {
+          max_results: "10",
+          expansions: "author_id",
+          "tweet.fields": "author_id,created_at,public_metrics",
+          "user.fields": "name,username",
         },
+        mapData: (body) =>
+          mapTimelineEntries(body, {
+            unread: true,
+            fallbackHandle: "@unknown",
+            fallbackName: "Mention Author",
+          }),
       });
     },
     async getUser(handle) {
-      return executeLiveRequest<XUserSummary>({
+      return executeScopedLiveRequest<XUserSummary>({
         capability: "analytics_read",
         operation: "getUser",
         endpointLabel: "Get user by handle",
@@ -649,7 +534,7 @@ function createLiveClient(): XClient {
       });
     },
     async createPost(text, media) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "post_tweet",
         operation: "createPost",
         endpointLabel: "Create post",
@@ -672,7 +557,7 @@ function createLiveClient(): XClient {
       });
     },
     async createReply(tweetId, text) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "reply_tweet",
         operation: "createReply",
         endpointLabel: "Create reply",
@@ -694,7 +579,7 @@ function createLiveClient(): XClient {
       });
     },
     async createQuote(tweetId, text) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "quote_tweet",
         operation: "createQuote",
         endpointLabel: "Create quote post",
@@ -716,7 +601,7 @@ function createLiveClient(): XClient {
       });
     },
     async likeTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "like_tweet",
         operation: "likeTweet",
         endpointLabel: "Like tweet",
@@ -731,7 +616,7 @@ function createLiveClient(): XClient {
       });
     },
     async repostTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "repost_tweet",
         operation: "repostTweet",
         endpointLabel: "Repost tweet",
@@ -746,7 +631,7 @@ function createLiveClient(): XClient {
       });
     },
     async bookmarkTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "bookmark_tweet",
         operation: "bookmarkTweet",
         endpointLabel: "Bookmark tweet",
@@ -761,7 +646,7 @@ function createLiveClient(): XClient {
       });
     },
     async followUser(userId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "follow_user",
         operation: "followUser",
         endpointLabel: "Follow user",
@@ -776,7 +661,7 @@ function createLiveClient(): XClient {
       });
     },
     async unfollowUser(userId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "unfollow_user",
         operation: "unfollowUser",
         endpointLabel: "Unfollow user",
@@ -790,7 +675,7 @@ function createLiveClient(): XClient {
       });
     },
     async updateProfileText(input) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "update_profile_text",
         operation: "updateProfileText",
         endpointLabel: "Update profile text",
@@ -815,6 +700,7 @@ function createLiveClient(): XClient {
       const authStrategy = await chooseAuthStrategy(
         "update_profile_media",
         "oauth1",
+        scope,
       );
       const hasMedia = Boolean(input.avatarMediaId || input.bannerMediaId);
       if (!hasMedia) {
@@ -838,7 +724,7 @@ function createLiveClient(): XClient {
       }
 
       if (input.avatarMediaId) {
-        return executeLiveRequest({
+        return executeScopedLiveRequest({
           capability: "update_profile_media",
           operation: "updateProfileMedia",
           endpointLabel: "Update profile image",
@@ -853,7 +739,7 @@ function createLiveClient(): XClient {
         });
       }
 
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "update_profile_media",
         operation: "updateProfileMedia",
         endpointLabel: "Update profile banner",
@@ -875,7 +761,7 @@ function createLiveClient(): XClient {
         operation: "getCapabilities",
         endpointLabel: "Capability matrix",
         status: 200,
-        data: await runCapabilityTests(options),
+        data: await runCapabilityTests({ ...options, scope }),
         message: "Returned live capability results.",
       });
     },
@@ -914,11 +800,15 @@ function createCapabilityResult(
   };
 }
 
-async function getCacheKey() {
-  const detected = await getDetectedAuthMethodsForCurrentUser();
-  const account = await getCurrentConnectedXAccountSummary();
+async function getCacheKey(scope?: XClientScope) {
+  const detected = await getDetectedAuthMethods(scope);
+  const account = scope
+    ? await getScopedConnectedXAccountSummary(scope)
+    : await getCurrentConnectedXAccountSummary();
   return JSON.stringify({
-    requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "demo",
+    requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "unavailable",
+    appUserId: scope?.appUserId || null,
+    expectedXUserId: scope?.expectedXUserId || null,
     methods: detected.map((method) => ({
       key: method.key,
       configured: method.configured,
@@ -930,8 +820,11 @@ async function getCacheKey() {
   });
 }
 
-export async function runCapabilityTests(options?: { force?: boolean }) {
-  const cacheKey = await getCacheKey();
+export async function runCapabilityTests(options?: {
+  force?: boolean;
+  scope?: XClientScope;
+}) {
+  const cacheKey = await getCacheKey(options?.scope);
 
   if (
     !options?.force &&
@@ -941,7 +834,7 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
     return globalThis.__xOperatorCapabilityCache.results;
   }
 
-  const client = await createXClient();
+  const client = await createXClient(options?.scope);
   const results = await Promise.all(
     capabilityOrder.map(async (capability) => {
       switch (capability) {
@@ -1007,7 +900,18 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
   return results;
 }
 
-export async function createXClient(): Promise<XClient> {
-  const runtime = await getConsoleRuntime();
-  return runtime.mode === "live" ? createLiveClient() : createDemoClient();
+export async function createXClient(scope?: XClientScope): Promise<XClient> {
+  const runtime = await getConsoleRuntime(scope);
+  const shouldUseLiveClient =
+    runtime.mode === "live" ||
+    Boolean(scope?.strictLive && runtime.requestedMode === "live");
+  return shouldUseLiveClient
+    ? createLiveClient(scope)
+    : createUnavailableClient({
+        mode: runtime.mode,
+        reason:
+          runtime.requestedMode === "live"
+            ? "Live X access is currently unavailable for this account. Reconnect X and retest capabilities."
+            : "Live mode is disabled. Set X_OPERATOR_CONSOLE_MODE=live and connect an X account before using account actions.",
+      });
 }

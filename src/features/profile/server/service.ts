@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { upsertExecutionLog } from "@/src/features/operator-store/server/store";
 import {
   getProfileRevisionById,
@@ -11,6 +10,7 @@ import {
 } from "@/src/features/operator-store/server/store";
 import { sanitizeApprovalValue } from "@/src/features/approvals/server/sanitize";
 import { getCurrentConnectedXAccountSummary } from "@/src/features/x-auth/server/connected-account";
+import { performXRequest } from "@/src/features/x-client/server/http";
 import {
   executeAction,
   logExecutionOutcome,
@@ -29,17 +29,92 @@ function now() {
   return new Date().toISOString();
 }
 
-function seedDemoRevision(): ProfileRevision {
+function extractData<T>(body: unknown, fallback: T): T {
+  if (body && typeof body === "object" && "data" in body) {
+    return (body as { data: T }).data;
+  }
+  return fallback;
+}
+
+function extractExpandedUrl(data: Record<string, unknown>) {
+  const entities =
+    data.entities && typeof data.entities === "object"
+      ? (data.entities as Record<string, unknown>)
+      : null;
+  const urlEntity =
+    entities?.url && typeof entities.url === "object"
+      ? (entities.url as Record<string, unknown>)
+      : null;
+  const urls = Array.isArray(urlEntity?.urls) ? urlEntity.urls : [];
+  const first = urls[0];
+
+  if (first && typeof first === "object") {
+    const expanded = (first as Record<string, unknown>).expanded_url;
+    if (typeof expanded === "string" && expanded.length > 0) {
+      return expanded;
+    }
+  }
+
+  return typeof data.url === "string" ? data.url : "";
+}
+
+async function fetchLiveProfileSurface() {
+  const connectedAccount = await getCurrentConnectedXAccountSummary();
+  if (!connectedAccount) {
+    return {
+      revision: null,
+      avatarUrl: null,
+      detail: "No connected X account is available for live profile readback.",
+      degraded: true,
+    };
+  }
+
+  const response = await performXRequest({
+    authStrategy: "oauth2_user",
+    endpointLabel: "Read current profile surface",
+    path: "/2/users/me",
+    query: {
+      "user.fields": "description,location,url,entities,profile_image_url",
+    },
+  });
+
+  if (!response.ok) {
+    return {
+      revision: {
+        id: "profile-live-surface",
+        name: connectedAccount.displayName,
+        bio: "",
+        url: "",
+        location: "",
+        avatar_asset_ref: null,
+        banner_asset_ref: null,
+        created_at: connectedAccount.connectedAt,
+        applied_at: connectedAccount.lastValidatedAt || connectedAccount.connectedAt,
+      } satisfies ProfileRevision,
+      avatarUrl: null,
+      detail: `Unable to read the current live profile surface. ${response.error.message}`,
+      degraded: true,
+    };
+  }
+
+  const data = extractData<Record<string, unknown>>(response.body, {});
+
   return {
-    id: "profile-demo-1",
-    name: "Console Demo",
-    bio: "Mission-control workspace for deliberate X operations, approvals, and safe fallback planning.",
-    url: "https://example.com/operator-console",
-    location: "Remote Ops",
-    avatar_asset_ref: null,
-    banner_asset_ref: null,
-    created_at: "2026-03-27T10:00:00.000Z",
-    applied_at: "2026-03-27T10:00:00.000Z",
+    revision: {
+      id: "profile-live-surface",
+      name: String(data.name || connectedAccount.displayName),
+      bio: typeof data.description === "string" ? data.description : "",
+      url: extractExpandedUrl(data),
+      location: typeof data.location === "string" ? data.location : "",
+      avatar_asset_ref: null,
+      banner_asset_ref: null,
+      created_at: connectedAccount.connectedAt,
+      applied_at: connectedAccount.lastValidatedAt || connectedAccount.connectedAt,
+    } satisfies ProfileRevision,
+    avatarUrl:
+      typeof data.profile_image_url === "string" ? data.profile_image_url : null,
+    detail: "Current profile surface was read live from X for this connected account.",
+    degraded: false,
   };
 }
 
@@ -54,48 +129,26 @@ async function appendProfileLog(input: Omit<ExecutionLogRecord, "id" | "timestam
 }
 
 export async function ensureProfileSeedData() {
-  const runtime = await getConsoleRuntime();
   const revisions = await listProfileRevisions();
   if (revisions.length > 0) {
     return revisions;
   }
-
-  if (runtime.mode === "live") {
-    return [];
-  }
-
-  const revision = seedDemoRevision();
-  await upsertProfileRevision(revision);
-  await updateProfileState({
-    currentAppliedRevisionId: revision.id,
-    currentDraftRevisionId: revision.id,
-  });
-  return [revision];
+  return [];
 }
 
 export async function getProfileEditorState() {
   const revisions = await ensureProfileSeedData();
   const state = await getProfileState();
   const connectedAccount = await getCurrentConnectedXAccountSummary();
+  const liveSurface = await fetchLiveProfileSurface();
   const draft =
     (state.currentDraftRevisionId &&
       (await getProfileRevisionById(state.currentDraftRevisionId))) ||
+    liveSurface.revision ||
     revisions[0] ||
-    (connectedAccount
-      ? {
-          id: "profile-live-surface",
-          name: connectedAccount.displayName,
-          bio: "",
-          url: "",
-          location: "",
-          avatar_asset_ref: null,
-          banner_asset_ref: null,
-          created_at: connectedAccount.connectedAt,
-          applied_at: connectedAccount.lastValidatedAt || connectedAccount.connectedAt,
-        }
-      : null) ||
     null;
   const applied =
+    liveSurface.revision ||
     (state.currentAppliedRevisionId &&
       (await getProfileRevisionById(state.currentAppliedRevisionId))) ||
     revisions.find((revision) => revision.applied_at) ||
@@ -105,6 +158,12 @@ export async function getProfileEditorState() {
     draft,
     applied,
     revisions,
+    liveReadState: {
+      detail: liveSurface.detail,
+      degraded: liveSurface.degraded,
+      avatarUrl: liveSurface.avatarUrl,
+      connectedHandle: connectedAccount ? `@${connectedAccount.username}` : null,
+    },
     scopeNotice:
       "Profile surface only: display name, bio, URL, location, avatar, and banner. Password, email, phone, 2FA, billing, privacy, and security settings are intentionally excluded.",
   };

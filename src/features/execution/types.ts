@@ -60,7 +60,7 @@ export type ExecutionResponseMap = {
 export type FallbackResultStatus =
   | "not_available"
   | "not_attempted"
-  | "placeholder"
+  | "unconfigured"
   | "succeeded"
   | "failed";
 
@@ -74,7 +74,7 @@ export interface ExecutionFallbackState {
 
 export interface ExecutionMetadata {
   action: ExecutionActionType;
-  mode: "demo" | "live";
+  mode: "unavailable" | "live";
   authMethod: XAuthMethod | "system";
   primaryExecutor: "api" | "fallback";
   capabilityHint: XCapability | "n/a";
@@ -98,7 +98,7 @@ export type NormalizedActionResult<T> =
 export interface ExecutionStatusPanel {
   enabled: boolean;
   available: boolean;
-  provider: "placeholder";
+  provider: "fallback_interface";
   headline: string;
   detail: string;
   nextStep: string;

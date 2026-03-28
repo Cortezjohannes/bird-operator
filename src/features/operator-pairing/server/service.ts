@@ -250,7 +250,7 @@ async function logOperatorAction(input: {
   operatorSession: OperatorSession;
   relatedTweetId?: string | null;
   executionPath: ActionExecutionPath;
-  authMethod?: "system" | "demo" | "oauth1" | "oauth2_user" | "bearer" | "client_credentials" | "none";
+  authMethod?: "system" | "oauth1" | "oauth2_user" | "bearer" | "client_credentials" | "none";
 }) {
   return recordActionLog({
     actor: input.actor,
@@ -959,7 +959,13 @@ export async function executeApprovedOperatorAction(input: {
     };
   }
 
-  const result = await executeAction(input.action, input.payload as never);
+  const result = await executeAction(input.action, input.payload as never, {
+    xScope: {
+      appUserId: session.paired_by_user_id,
+      expectedXUserId: session.connected_x_account_id,
+      strictLive: true,
+    },
+  });
   await recordActionLog({
     actor: input.reviewer || session.operator_instance_id,
     actorType: input.reviewer ? "owner" : "operator",
@@ -971,7 +977,7 @@ export async function executeApprovedOperatorAction(input: {
       ? "Approved operator action executed successfully."
       : result.error.message,
     authMethod:
-      result.metadata.mode === "demo" ? "demo" : result.metadata.authMethod,
+      result.metadata.mode === "unavailable" ? "none" : result.metadata.authMethod,
     operatorSessionId: session.id,
     operatorSessionMode: session.mode,
     executionPath: "auto_executed",
@@ -1074,7 +1080,13 @@ export async function executeOperatorSessionAction(input: {
     };
   }
 
-  const result = await executeAction(input.action, input.payload as never);
+  const result = await executeAction(input.action, input.payload as never, {
+    xScope: {
+      appUserId: session.paired_by_user_id,
+      expectedXUserId: session.connected_x_account_id,
+      strictLive: true,
+    },
+  });
   await logOperatorAction({
     actor: session.operator_instance_id,
     actionType: `operator.${input.action}`,
@@ -1093,7 +1105,7 @@ export async function executeOperatorSessionAction(input: {
     operatorSession: session,
     executionPath: session.mode === "trusted_operator" ? "auto_executed" : "direct",
     authMethod:
-      result.metadata.mode === "demo" ? "demo" : result.metadata.authMethod,
+      result.metadata.mode === "unavailable" ? "none" : result.metadata.authMethod,
   });
 
   if (!result.ok) {
