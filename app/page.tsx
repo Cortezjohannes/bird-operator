@@ -11,6 +11,8 @@ import {
 import { getConsoleSnapshot } from "@/src/features/console/server/snapshot";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const snapshot = await getConsoleSnapshot();
 

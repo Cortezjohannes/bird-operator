@@ -124,7 +124,11 @@ export function ComposerCard({
       <SectionLabel
         eyebrow="Compose"
         title={snapshot.composerDraft.title}
-        detail="Server actions and approval routing come in a later phase."
+        detail={
+          snapshot.mode === "live"
+            ? "Drafts and execution routes now run against the connected account."
+            : "Server actions and approval routing come in a later phase."
+        }
       />
       <div className="rounded-2xl border border-white/8 bg-panel-strong/90 p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -160,7 +164,11 @@ export function DiagnosticsCard({
       <SectionLabel
         eyebrow="Diagnostics"
         title="Capability Readiness"
-        detail="Live mode stays off unless the required server env vars are present."
+        detail={
+          snapshot.mode === "live"
+            ? "Capability status is derived from the connected account and live probes."
+            : "Live mode stays off unless the required server env vars are present."
+        }
       />
       <div className="space-y-3">
         {snapshot.capabilities.map((capability) => (
@@ -204,7 +212,11 @@ export function ActivityFeedCard({
       <SectionLabel
         eyebrow="Activity"
         title="Recent Operator Log"
-        detail="Seeded mock data for demo mode. No sensitive runtime logs are committed."
+        detail={
+          snapshot.mode === "live"
+            ? "Recent activity for the connected account and its operator workflows."
+            : "Seeded mock data for demo mode. No sensitive runtime logs are committed."
+        }
       />
       <div className="space-y-3">
         {snapshot.activity.map((item) => (
@@ -285,7 +297,11 @@ export function AnalyticsCard({
       <SectionLabel
         eyebrow="Analytics"
         title="Baseline Signals"
-        detail="Phase 1 keeps analytics intentionally simple and read-only."
+        detail={
+          snapshot.mode === "live"
+            ? "Derived from live account execution logs, drafts, and available follower snapshots."
+            : "Phase 1 keeps analytics intentionally simple and read-only."
+        }
       />
       <div className="grid gap-3 sm:grid-cols-2">
         {[
