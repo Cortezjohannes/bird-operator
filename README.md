@@ -125,6 +125,56 @@ Each session has its own granted capabilities. Trusted sessions can execute gran
 - actions are fully logged
 - the session can be downgraded or revoked immediately
 
+## VPS Operator Helper
+
+For a remote operator instance such as OpenClaw on a VPS, the repo includes a thin pairing helper. It requests pairing from the hosted app, prints the approval link and backup code, polls for approval, and stores only the resulting app-level lease locally.
+
+It does not copy:
+- Railway secrets
+- X client secrets
+- X access tokens
+- X refresh tokens
+
+### VPS Setup
+
+```bash
+git clone https://github.com/Cortezjohannes/bird-operator.git
+cd bird-operator
+npm install
+cp .env.operator.example .env.operator
+```
+
+Edit `.env.operator` with at least:
+- `APP_BASE_URL`
+- `OPERATOR_LABEL`
+- `OPERATOR_INSTANCE_ID`
+
+Then start pairing:
+
+```bash
+npm run operator:pair
+```
+
+The helper will:
+1. call the app pairing endpoint
+2. print the one-time approval link
+3. print the backup pairing code
+4. poll until the owner approves or rejects the request
+5. store the resulting app-level lease in `.operator-session.json`
+
+Check the local operator lease status any time:
+
+```bash
+npm run operator:status
+```
+
+### VPS Security Notes
+
+- Do not copy `.env.local`, Railway env vars, or X OAuth secrets onto the VPS.
+- Do not put `APP_SESSION_SECRET`, `APP_OWNER_PASSWORD_HASH`, `X_CLIENT_SECRET`, or `X_TOKEN_ENCRYPTION_KEY` on the remote operator machine.
+- The VPS only needs the hosted app URL and its own operator identity metadata.
+- `.operator-session.json` contains the app-level operator lease, so keep it local and treat it like a revocable operator credential.
+
 ## Railway Deployment
 
 The simplest reliable hosted deployment for this app is:

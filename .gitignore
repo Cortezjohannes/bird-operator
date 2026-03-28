@@ -37,7 +37,9 @@ yarn-error.log*
 .env.development
 .env.production
 .env.test
+.env.operator
 !.env.example
+!.env.operator.example
 
 # local runtime artifacts
 *.sqlite
@@ -50,6 +52,7 @@ yarn-error.log*
 /tmp/
 playwright/.auth/
 *.log
+.operator-session.json
 
 # vercel
 .vercel
