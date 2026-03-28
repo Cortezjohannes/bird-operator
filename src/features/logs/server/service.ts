@@ -146,7 +146,7 @@ export async function getActionLogs() {
   if (runtime.mode === "demo" && stored.length === 0) {
     return demoLogs;
   }
-  return stored.length > 0 ? stored : demoLogs;
+  return stored;
 }
 
 export async function filterActionLogs(filters: ActionLogFilters) {

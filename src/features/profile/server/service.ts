@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { upsertExecutionLog } from "@/src/features/operator-store/server/store";
 import {
   getProfileRevisionById,
@@ -9,6 +10,7 @@ import {
   upsertProfileRevision,
 } from "@/src/features/operator-store/server/store";
 import { sanitizeApprovalValue } from "@/src/features/approvals/server/sanitize";
+import { getCurrentConnectedXAccountSummary } from "@/src/features/x-auth/server/connected-account";
 import {
   executeAction,
   logExecutionOutcome,
@@ -52,9 +54,14 @@ async function appendProfileLog(input: Omit<ExecutionLogRecord, "id" | "timestam
 }
 
 export async function ensureProfileSeedData() {
+  const runtime = await getConsoleRuntime();
   const revisions = await listProfileRevisions();
   if (revisions.length > 0) {
     return revisions;
+  }
+
+  if (runtime.mode === "live") {
+    return [];
   }
 
   const revision = seedDemoRevision();
@@ -69,10 +76,24 @@ export async function ensureProfileSeedData() {
 export async function getProfileEditorState() {
   const revisions = await ensureProfileSeedData();
   const state = await getProfileState();
+  const connectedAccount = await getCurrentConnectedXAccountSummary();
   const draft =
     (state.currentDraftRevisionId &&
       (await getProfileRevisionById(state.currentDraftRevisionId))) ||
     revisions[0] ||
+    (connectedAccount
+      ? {
+          id: "profile-live-surface",
+          name: connectedAccount.displayName,
+          bio: "",
+          url: "",
+          location: "",
+          avatar_asset_ref: null,
+          banner_asset_ref: null,
+          created_at: connectedAccount.connectedAt,
+          applied_at: connectedAccount.lastValidatedAt || connectedAccount.connectedAt,
+        }
+      : null) ||
     null;
   const applied =
     (state.currentAppliedRevisionId &&

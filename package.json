@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "node scripts/migrate-postgres.mjs"
+    "db:migrate": "node scripts/migrate-postgres.mjs",
+    "operator:pair": "node scripts/operator-pair.mjs",
+    "operator:status": "node scripts/operator-status.mjs"
   },
   "dependencies": {
     "@types/pg": "^8.20.0",
