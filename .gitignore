@@ -44,10 +44,10 @@ yarn-error.log*
 *.sqlite-shm
 *.sqlite-wal
 *.db
-logs/
-data/
-uploads/
-tmp/
+/logs/
+/data/
+/uploads/
+/tmp/
 playwright/.auth/
 *.log
 
