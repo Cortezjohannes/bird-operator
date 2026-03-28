@@ -13,6 +13,7 @@ const publicApiPaths = new Set([
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/session",
+  "/api/health",
   "/api/operator-pairing/request",
   "/api/operator-pairing/status",
   "/api/operator/actions/execute",

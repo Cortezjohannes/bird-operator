@@ -2,6 +2,7 @@ import "server-only";
 
 import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { getAuthSetupState } from "@/src/features/auth/server/config";
+import { getPersistenceStatus } from "@/src/features/operator-store/server/store";
 import {
   getCurrentConnectedXAccountSummary,
   getDetectedAuthMethodsForCurrentUser,
@@ -18,10 +19,11 @@ export { runCapabilityTests } from "@/src/features/x-client/server";
 export async function getAuthStatus(): Promise<AuthStatusPayload> {
   const runtime = await getConsoleRuntime();
   await validateCurrentConnectedAccount();
-  const [detectedAuthMethods, connectedAccount, tokenHealth] = await Promise.all([
+  const [detectedAuthMethods, connectedAccount, tokenHealth, persistence] = await Promise.all([
     getDetectedAuthMethodsForCurrentUser(),
     getCurrentConnectedXAccountSummary(),
     getTokenHealthForCurrentUser(),
+    getPersistenceStatus(),
   ]);
   const hosting = getOAuthHostingState();
   const authSetup = getAuthSetupState();
@@ -42,5 +44,8 @@ export async function getAuthStatus(): Promise<AuthStatusPayload> {
     tokenHealth,
     scopesSummary: tokenHealth?.scopes || [],
     configWarnings: [...authSetup.configWarnings, ...hosting.warnings],
+    persistenceBackend: persistence.backend,
+    persistenceHealthy: persistence.healthy,
+    persistenceSummary: persistence.message,
   };
 }

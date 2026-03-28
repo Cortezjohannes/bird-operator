@@ -20,7 +20,19 @@ export interface ExecutionSettings {
   browserFallbackEnabled: boolean;
 }
 
+export interface StoredAppUser {
+  id: string;
+  email: string;
+  role: "owner" | "operator";
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
+}
+
+export type PersistenceBackend = "file" | "postgres";
+
 export interface OperatorStoreSnapshot {
+  appUsers: Record<string, StoredAppUser>;
   triage: Record<string, StoredTweetTriage>;
   watchlist: Record<string, StoredWatchlistEntry>;
   drafts: Record<string, import("@/src/features/drafts/types").DraftRecord>;

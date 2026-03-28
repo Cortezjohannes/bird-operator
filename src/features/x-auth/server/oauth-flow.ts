@@ -199,7 +199,7 @@ export async function createXConnectUrl() {
   if (!config.configured) {
     return {
       ok: false as const,
-      error: "Hosted X OAuth is not configured. Set APP_BASE_URL, X_CLIENT_ID, and X_CLIENT_SECRET.",
+      error: "Hosted X OAuth is not configured. Set APP_BASE_URL or APP_URL, plus X_CLIENT_ID and X_CLIENT_SECRET.",
     };
   }
 
@@ -463,10 +463,10 @@ export function getOAuthHostingState() {
   const warnings: string[] = [];
 
   if (!config.callbackUrl) {
-    warnings.push("APP_BASE_URL is missing or invalid, so the hosted callback URL cannot be derived.");
+    warnings.push("APP_BASE_URL or APP_URL is missing or invalid, so the hosted callback URL cannot be derived.");
   }
   if (!config.configured) {
-    warnings.push("Hosted X OAuth is not fully configured. Set APP_BASE_URL, X_CLIENT_ID, and X_CLIENT_SECRET.");
+    warnings.push("Hosted X OAuth is not fully configured. Set APP_BASE_URL or APP_URL, plus X_CLIENT_ID and X_CLIENT_SECRET.");
   }
   if (!isTokenEncryptionConfigured()) {
     warnings.push("X_TOKEN_ENCRYPTION_KEY is missing or too short for encrypted token storage.");

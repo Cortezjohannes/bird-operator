@@ -129,6 +129,14 @@ export function AuthPage({
                     {authStatus.oauthConfigured ? "configured" : "not ready"}
                   </dd>
                 </div>
+                <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                    Persistence
+                  </dt>
+                  <dd className="mt-2 text-sm font-medium text-slate-100">
+                    {authStatus.persistenceBackend} / {authStatus.persistenceHealthy ? "healthy" : "degraded"}
+                  </dd>
+                </div>
                 <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3 sm:col-span-2">
                   <dt className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
                     Probe summary
@@ -139,10 +147,18 @@ export function AuthPage({
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3 sm:col-span-2">
                   <dt className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                    Persistence summary
+                  </dt>
+                  <dd className="mt-2 text-sm leading-6 text-slate-300">
+                    {authStatus.persistenceSummary}
+                  </dd>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3 sm:col-span-2">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
                     Hosted OAuth callback
                   </dt>
                   <dd className="mt-2 text-sm leading-6 text-slate-300">
-                    {authStatus.callbackUrl || "Missing APP_BASE_URL or OAuth client config."}
+                    {authStatus.callbackUrl || "Missing APP_BASE_URL or APP_URL, or OAuth client config."}
                   </dd>
                 </div>
               </dl>

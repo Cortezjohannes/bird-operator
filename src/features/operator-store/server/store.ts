@@ -3,36 +3,40 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { Pool } from "pg";
+
 import { defaultApprovalPolicy } from "@/src/features/approvals/server/policy";
-import { getDefaultGrantedCapabilities } from "@/src/features/operator-pairing/policy";
 import type {
   ApprovalPolicySettings,
   ApprovalRequest,
   ExecutionLogRecord,
 } from "@/src/features/approvals/types";
-import type {
-  DraftRecord,
-} from "@/src/features/drafts/types";
-import type {
-  ExecutionSettings,
-  OperatorStoreSnapshot,
-  StoredTweetTriage,
-  StoredWatchlistEntry,
-  TriageLabel,
-} from "@/src/features/operator-store/types";
+import type { DraftRecord } from "@/src/features/drafts/types";
 import type { ActionLog } from "@/src/features/logs/types";
+import { getDefaultGrantedCapabilities } from "@/src/features/operator-pairing/policy";
 import type {
   OperatorPairingRequest,
   OperatorSession,
 } from "@/src/features/operator-pairing/types";
+import type {
+  ExecutionSettings,
+  OperatorStoreSnapshot,
+  PersistenceBackend,
+  StoredAppUser,
+  StoredTweetTriage,
+  StoredWatchlistEntry,
+  TriageLabel,
+} from "@/src/features/operator-store/types";
 import type { ProfileRevision, ProfileState } from "@/src/features/profile/types";
-import type { StoredConnectedXAccount } from "@/src/features/x-auth/types";
 import { capabilityOrder } from "@/src/features/x-auth/capabilities";
+import type { StoredConnectedXAccount } from "@/src/features/x-auth/types";
 
 const dataDir = path.join(process.cwd(), "data");
 const storePath = path.join(dataDir, "operator-store.json");
+const storeNamespace = "default";
 
 const defaultSnapshot: OperatorStoreSnapshot = {
+  appUsers: {},
   triage: {},
   watchlist: {},
   drafts: {},
@@ -52,6 +56,17 @@ const defaultSnapshot: OperatorStoreSnapshot = {
   pairingRequests: {},
   operatorSessions: {},
 };
+
+let pool: Pool | null = null;
+let schemaEnsured = false;
+
+function getDatabaseUrl() {
+  return process.env.DATABASE_URL?.trim() || "";
+}
+
+function getPersistenceBackend(): PersistenceBackend {
+  return getDatabaseUrl() ? "postgres" : "file";
+}
 
 function normalizeRequestedCapabilities(input: unknown) {
   const requested = Array.isArray(input) ? new Set(input) : new Set();
@@ -102,6 +117,30 @@ function normalizeOperatorSessionRecord(record: OperatorSession) {
   };
 }
 
+function normalizeSnapshot(parsed: Partial<OperatorStoreSnapshot>) {
+  return {
+    appUsers: parsed.appUsers || {},
+    triage: parsed.triage || {},
+    watchlist: parsed.watchlist || {},
+    drafts: parsed.drafts || {},
+    approvals: parsed.approvals || {},
+    approvalPolicy: parsed.approvalPolicy || defaultApprovalPolicy(),
+    executionLogs: parsed.executionLogs || [],
+    profileRevisions: parsed.profileRevisions || {},
+    profileState: parsed.profileState || {
+      currentDraftRevisionId: null,
+      currentAppliedRevisionId: null,
+    },
+    actionLogs: parsed.actionLogs || [],
+    executionSettings: parsed.executionSettings || {
+      browserFallbackEnabled: false,
+    },
+    connectedXAccounts: parsed.connectedXAccounts || {},
+    pairingRequests: parsed.pairingRequests || {},
+    operatorSessions: parsed.operatorSessions || {},
+  } satisfies OperatorStoreSnapshot;
+}
+
 async function ensureStoreFile() {
   await fs.mkdir(dataDir, { recursive: true });
 
@@ -112,40 +151,166 @@ async function ensureStoreFile() {
   }
 }
 
+function getPool() {
+  if (pool) {
+    return pool;
+  }
+
+  const connectionString = getDatabaseUrl();
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
+
+  const shouldUseSsl =
+    process.env.DATABASE_SSL === "require" ||
+    connectionString.includes("sslmode=require") ||
+    process.env.NODE_ENV === "production";
+
+  pool = new Pool({
+    connectionString,
+    ssl: shouldUseSsl ? { rejectUnauthorized: false } : undefined,
+    max: 10,
+  });
+  return pool;
+}
+
+async function ensurePostgresSchema() {
+  if (schemaEnsured) {
+    return;
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS operator_store_state (
+        namespace TEXT PRIMARY KEY,
+        snapshot JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    const existing = await client.query(
+      `SELECT namespace FROM operator_store_state WHERE namespace = $1`,
+      [storeNamespace],
+    );
+
+    if (existing.rowCount === 0) {
+      await client.query(
+        `INSERT INTO operator_store_state (namespace, snapshot, updated_at)
+         VALUES ($1, $2::jsonb, NOW())`,
+        [storeNamespace, JSON.stringify(defaultSnapshot)],
+      );
+    }
+
+    schemaEnsured = true;
+  } finally {
+    client.release();
+  }
+}
+
+async function readSnapshotFromPostgres() {
+  await ensurePostgresSchema();
+  const result = await getPool().query(
+    `SELECT snapshot FROM operator_store_state WHERE namespace = $1`,
+    [storeNamespace],
+  );
+
+  if (result.rowCount === 0) {
+    return defaultSnapshot;
+  }
+
+  return normalizeSnapshot(result.rows[0].snapshot as Partial<OperatorStoreSnapshot>);
+}
+
+async function writeSnapshotToPostgres(snapshot: OperatorStoreSnapshot) {
+  await ensurePostgresSchema();
+  await getPool().query(
+    `INSERT INTO operator_store_state (namespace, snapshot, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (namespace)
+     DO UPDATE SET snapshot = EXCLUDED.snapshot, updated_at = NOW()`,
+    [storeNamespace, JSON.stringify(snapshot)],
+  );
+}
+
 export async function readOperatorStore() {
+  if (getPersistenceBackend() === "postgres") {
+    return readSnapshotFromPostgres();
+  }
+
   await ensureStoreFile();
   const raw = await fs.readFile(storePath, "utf8");
 
   try {
     const parsed = JSON.parse(raw) as Partial<OperatorStoreSnapshot>;
-    return {
-      triage: parsed.triage || {},
-      watchlist: parsed.watchlist || {},
-      drafts: parsed.drafts || {},
-      approvals: parsed.approvals || {},
-      approvalPolicy: parsed.approvalPolicy || defaultApprovalPolicy(),
-      executionLogs: parsed.executionLogs || [],
-      profileRevisions: parsed.profileRevisions || {},
-      profileState: parsed.profileState || {
-        currentDraftRevisionId: null,
-        currentAppliedRevisionId: null,
-      },
-      actionLogs: parsed.actionLogs || [],
-      executionSettings: parsed.executionSettings || {
-        browserFallbackEnabled: false,
-      },
-      connectedXAccounts: parsed.connectedXAccounts || {},
-      pairingRequests: parsed.pairingRequests || {},
-      operatorSessions: parsed.operatorSessions || {},
-    } satisfies OperatorStoreSnapshot;
+    return normalizeSnapshot(parsed);
   } catch {
     return defaultSnapshot;
   }
 }
 
 async function writeOperatorStore(snapshot: OperatorStoreSnapshot) {
+  if (getPersistenceBackend() === "postgres") {
+    await writeSnapshotToPostgres(snapshot);
+    return;
+  }
+
   await ensureStoreFile();
   await fs.writeFile(storePath, JSON.stringify(snapshot, null, 2), "utf8");
+}
+
+export async function getPersistenceStatus() {
+  const backend = getPersistenceBackend();
+
+  if (backend === "postgres") {
+    try {
+      await ensurePostgresSchema();
+      await getPool().query("SELECT 1");
+      return {
+        backend,
+        configured: true,
+        healthy: true,
+        message: "Postgres persistence is configured and reachable.",
+      };
+    } catch (error) {
+      return {
+        backend,
+        configured: true,
+        healthy: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to reach the configured Postgres database.",
+      };
+    }
+  }
+
+  return {
+    backend,
+    configured: false,
+    healthy: true,
+    message:
+      "Using local file persistence. This is fine for local development, but not recommended for Railway production deployments.",
+  };
+}
+
+export async function listAppUsers() {
+  const snapshot = await readOperatorStore();
+  return Object.values(snapshot.appUsers).sort((a, b) => {
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+}
+
+export async function getAppUserById(id: string) {
+  const snapshot = await readOperatorStore();
+  return snapshot.appUsers[id] || null;
+}
+
+export async function upsertAppUser(record: StoredAppUser) {
+  const snapshot = await readOperatorStore();
+  snapshot.appUsers[record.id] = record;
+  await writeOperatorStore(snapshot);
+  return record;
 }
 
 export async function setTweetTriageLabel(tweetId: string, label: TriageLabel) {
@@ -326,12 +491,14 @@ export async function deleteConnectedXAccount(appUserId: string) {
 
 export async function listPairingRequests() {
   const snapshot = await readOperatorStore();
-  return Object.values(snapshot.pairingRequests).sort((a, b) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  }).map((record) => ({
-    ...record,
-    requested_capabilities: normalizeRequestedCapabilities(record.requested_capabilities),
-  }));
+  return Object.values(snapshot.pairingRequests)
+    .sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
+    .map((record) => ({
+      ...record,
+      requested_capabilities: normalizeRequestedCapabilities(record.requested_capabilities),
+    }));
 }
 
 export async function getPairingRequestById(id: string) {
@@ -358,9 +525,11 @@ export async function upsertPairingRequest(record: OperatorPairingRequest) {
 
 export async function listOperatorSessions() {
   const snapshot = await readOperatorStore();
-  return Object.values(snapshot.operatorSessions).sort((a, b) => {
-    return new Date(b.paired_at).getTime() - new Date(a.paired_at).getTime();
-  }).map(normalizeOperatorSessionRecord);
+  return Object.values(snapshot.operatorSessions)
+    .sort((a, b) => {
+      return new Date(b.paired_at).getTime() - new Date(a.paired_at).getTime();
+    })
+    .map(normalizeOperatorSessionRecord);
 }
 
 export async function getOperatorSessionById(id: string) {

@@ -138,4 +138,7 @@ export interface AuthStatusPayload {
   tokenHealth: XTokenHealthSummary | null;
   scopesSummary: string[];
   configWarnings: string[];
+  persistenceBackend: "file" | "postgres";
+  persistenceHealthy: boolean;
+  persistenceSummary: string;
 }

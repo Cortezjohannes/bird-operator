@@ -16,10 +16,24 @@ function parseUrl(value: string) {
   }
 }
 
+function getRailwayPublicUrl() {
+  const domain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (!domain) {
+    return "";
+  }
+
+  return `https://${domain}`;
+}
+
 export const APP_SESSION_COOKIE_NAME = "x_operator_session";
 
 export function getAppBaseUrl() {
-  const parsed = parseUrl(process.env.APP_BASE_URL || "");
+  const parsed = parseUrl(
+    process.env.APP_BASE_URL ||
+      process.env.APP_URL ||
+      process.env.NEXTAUTH_URL ||
+      getRailwayPublicUrl(),
+  );
   return parsed ? parsed.toString().replace(/\/$/, "") : "";
 }
 
@@ -49,6 +63,18 @@ export function getSessionTtlSeconds() {
     return 60 * 60 * 12;
   }
   return Math.round(value * 60 * 60);
+}
+
+export function isRailwayEnvironment() {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT_NAME ||
+      process.env.RAILWAY_PROJECT_ID ||
+      process.env.RAILWAY_SERVICE_ID,
+  );
+}
+
+export function getDatabaseUrl() {
+  return process.env.DATABASE_URL?.trim() || "";
 }
 
 export function isSecureCookieEnvironment() {
@@ -91,7 +117,7 @@ export function isTrustedOrigin(origin: string | null | undefined) {
 export function getAuthSetupState(): AppAuthSetupState {
   const missingFields: string[] = [];
   const configWarnings: string[] = [];
-  const baseUrl = parseUrl(process.env.APP_BASE_URL || "");
+  const baseUrl = parseUrl(getAppBaseUrl());
 
   if (!getOwnerEmail()) {
     missingFields.push("APP_OWNER_EMAIL");
@@ -102,20 +128,26 @@ export function getAuthSetupState(): AppAuthSetupState {
   if (!getAppSessionSecret()) {
     missingFields.push("APP_SESSION_SECRET");
   }
+  if (isSecureCookieEnvironment() && !getDatabaseUrl()) {
+    missingFields.push("DATABASE_URL");
+  }
 
   if (!baseUrl) {
-    configWarnings.push("APP_BASE_URL is missing or invalid. Hosted OAuth and production redirects need an absolute public URL.");
+    configWarnings.push("APP_BASE_URL or APP_URL is missing or invalid. Hosted OAuth and approval links need an absolute public URL.");
   } else {
     if (isSecureCookieEnvironment() && baseUrl.protocol !== "https:") {
-      configWarnings.push("APP_BASE_URL should use https in production.");
+      configWarnings.push("The public app URL should use https in production.");
     }
     if (isSecureCookieEnvironment() && /localhost|127\.0\.0\.1/.test(baseUrl.hostname)) {
-      configWarnings.push("APP_BASE_URL still points at localhost. Update it before public deployment.");
+      configWarnings.push("The public app URL still points at localhost. Update it before public deployment.");
     }
   }
 
   if (isSecureCookieEnvironment() && getTrustedHosts().length === 0) {
     configWarnings.push("APP_TRUSTED_HOSTS is not set. Same-origin enforcement will fall back to APP_BASE_URL only.");
+  }
+  if (isRailwayEnvironment() && !getDatabaseUrl()) {
+    configWarnings.push("Railway deployment should attach a Postgres service and set DATABASE_URL.");
   }
 
   const configured = missingFields.length === 0;

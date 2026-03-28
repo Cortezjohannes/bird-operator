@@ -79,7 +79,8 @@ Required:
 - `APP_OWNER_PASSWORD_HASH`
 
 Recommended:
-- `APP_BASE_URL`
+- `APP_BASE_URL` or `APP_URL`
+- `DATABASE_URL` if you want to exercise the Railway-style Postgres path locally
 
 4. Start the app.
 
@@ -94,10 +95,11 @@ npm run dev
 To use live X connectivity instead of demo mode, set:
 
 - `X_OPERATOR_CONSOLE_MODE=live`
-- `APP_BASE_URL`
+- `APP_BASE_URL` or `APP_URL`
 - `X_CLIENT_ID`
 - `X_CLIENT_SECRET`
 - `X_TOKEN_ENCRYPTION_KEY`
+- `DATABASE_URL` for production-safe persistence
 
 Then:
 1. Sign in as the owner.
@@ -123,16 +125,34 @@ Each session has its own granted capabilities. Trusted sessions can execute gran
 - actions are fully logged
 - the session can be downgraded or revoked immediately
 
-## Production Deployment Basics
+## Railway Deployment
 
-This app is designed for VPS-style deployment behind HTTPS.
+The simplest reliable hosted deployment for this app is:
+- one Railway web service for Next.js
+- one Railway Postgres service for persistence
 
-Recommended production shape:
-- `APP_BASE_URL` set to the public HTTPS origin
-- reverse proxy terminates TLS and forwards the canonical host
-- `APP_TRUSTED_HOSTS` set to the allowed public hostnames
-- runtime `data/` persisted on disk or replaced with a real database
-- environment variables injected server-side only
+The app will automatically use Postgres when `DATABASE_URL` is present. If `DATABASE_URL` is missing, it falls back to the local file store, which is fine for local development but not what you want on Railway.
+
+Recommended Railway env vars:
+- `APP_BASE_URL` or `APP_URL`
+- `APP_TRUSTED_HOSTS`
+- `DATABASE_URL`
+- `APP_SESSION_SECRET`
+- `APP_OWNER_EMAIL`
+- `APP_OWNER_PASSWORD_HASH`
+- `X_OPERATOR_CONSOLE_MODE=live`
+- `X_TOKEN_ENCRYPTION_KEY`
+- `X_CLIENT_ID`
+- `X_CLIENT_SECRET`
+
+Railway deploy flow:
+1. Create a Railway project.
+2. Add a Postgres service.
+3. Deploy this repo as a web service.
+4. Set the web service env vars listed above.
+5. Run `npm run db:migrate`.
+6. Set the X OAuth callback URL to `https://your-app.up.railway.app/api/x/callback` or your custom domain equivalent.
+7. Open `/api/health` and `/settings/auth` to confirm the app is healthy.
 
 Build and run:
 
@@ -141,26 +161,19 @@ npm run build
 npm run start
 ```
 
-Production checklist:
-- set a long random `APP_SESSION_SECRET`
-- set a long random `X_TOKEN_ENCRYPTION_KEY`
-- confirm `APP_BASE_URL` is HTTPS and not localhost
-- confirm `APP_TRUSTED_HOSTS` matches the deployed hostname
-- keep `data/`, `logs/`, `uploads/`, and `tmp/` out of Git and backed by persistent storage if needed
-- verify `/settings/auth` shows no deployment warnings
-- verify revocation and capability retest flows before trusting an operator session
+Post-deploy sanity checklist:
+- app loads from the Railway public URL
+- owner login works
+- `/api/health` returns healthy
+- `/settings/auth` shows the correct public callback URL
+- X connect completes and redirects back to the hosted app
+- capability retest works
+- pairing requests can be created and approved
+- revoke and downgrade still take effect immediately
+- Trusted Operator Mode still respects granted capabilities server-side
 
-More deployment notes: [docs/deployment.md](./docs/deployment.md)
-
-## Storage Expectations
-
-The current repo uses local JSON-backed runtime storage in `data/operator-store.json`.
-
-That is good enough for demo mode and careful single-instance deployment, but future production work should move runtime state to a real database for:
-- better durability
-- safer concurrent writes
-- easier backups
-- multi-user growth
+More deployment notes:
+- [docs/deployment.md](./docs/deployment.md)
 
 ## Important Limits
 

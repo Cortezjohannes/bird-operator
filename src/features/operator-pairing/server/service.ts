@@ -390,7 +390,7 @@ async function requireOwnerContext() {
 function buildApprovalUrl(token: string) {
   const baseUrl = getAppBaseUrl();
   if (!baseUrl) {
-    throw new Error("APP_BASE_URL is required to generate approval links.");
+    throw new Error("APP_BASE_URL or APP_URL is required to generate approval links.");
   }
 
   const url = new URL("/operators/approve", baseUrl);

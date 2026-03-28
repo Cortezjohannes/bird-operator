@@ -3,6 +3,7 @@ import "server-only";
 import { getAuthSetupState, getOwnerEmail, getOwnerPasswordHash } from "@/src/features/auth/server/config";
 import { setAppSession } from "@/src/features/auth/server/current-session";
 import { recordActionLog } from "@/src/features/logs/server/service";
+import { getAppUserById, upsertAppUser } from "@/src/features/operator-store/server/store";
 import { verifyPasswordHash } from "@/src/features/auth/server/password";
 import { consumeLoginAttempt, resetLoginAttempts } from "@/src/features/auth/server/rate-limit";
 
@@ -93,10 +94,19 @@ export async function authenticateOwnerLogin(input: {
 
   resetLoginAttempts(input.remoteAddress || "unknown");
 
+  const existingOwner = await getAppUserById("owner-user");
   await setAppSession({
     id: "owner-user",
     email: normalizedEmail,
     role: "owner",
+  });
+  await upsertAppUser({
+    id: "owner-user",
+    email: normalizedEmail,
+    role: "owner",
+    createdAt: existingOwner?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString(),
   });
 
   await recordActionLog({

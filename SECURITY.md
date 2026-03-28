@@ -84,6 +84,8 @@ The app currently stores runtime state locally in ignored files such as:
 
 Those artifacts may contain sensitive operational data even when they do not contain raw tokens. Keep them local-only or replace them with a secured production data store.
 
+For Railway production deployments, prefer the configured Postgres backend through `DATABASE_URL` instead of relying on local runtime files.
+
 ## What Not To Commit
 
 Do not commit:

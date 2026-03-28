@@ -161,7 +161,7 @@ export function LoginScreen({
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">Deployment Notes</p>
             <ul className="mt-3 space-y-2">
               <li>Use a long random <code className="rounded bg-black/20 px-1.5 py-0.5">APP_SESSION_SECRET</code>.</li>
-              <li>Set <code className="rounded bg-black/20 px-1.5 py-0.5">APP_BASE_URL</code> for hosted callback-safe environments.</li>
+              <li>Set <code className="rounded bg-black/20 px-1.5 py-0.5">APP_BASE_URL</code> or <code className="rounded bg-black/20 px-1.5 py-0.5">APP_URL</code> for hosted callback-safe environments.</li>
               <li>Sessions are HTTP-only, same-site, and secure in production.</li>
             </ul>
           </div>
