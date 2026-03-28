@@ -44,7 +44,7 @@ export interface ActionLog {
   execution_path: ActionExecutionPath | null;
   fallback_available: boolean;
   fallback_attempted: boolean;
-  fallback_result: "not_available" | "not_attempted" | "placeholder" | "succeeded" | "failed";
+  fallback_result: "not_available" | "not_attempted" | "unconfigured" | "succeeded" | "failed";
 }
 
 export interface ActionLogFilters {

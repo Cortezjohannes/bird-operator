@@ -1,6 +1,5 @@
 import "server-only";
 
-import { demoSnapshot } from "@/src/features/console/data/demo-snapshot";
 import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import type {
   ActivityItem,
@@ -315,6 +314,73 @@ async function buildLiveSnapshot(): Promise<ConsoleSnapshotType> {
   };
 }
 
+async function buildUnavailableSnapshot(): Promise<ConsoleSnapshotType> {
+  const [authStatus, drafts, approvals, store, logs, analytics, profileState] =
+    await Promise.all([
+      getAuthStatus(),
+      getDrafts(),
+      listApprovals(),
+      readOperatorStore(),
+      getActionLogs(),
+      getAnalyticsSnapshot(),
+      getProfileEditorState(),
+    ]);
+
+  const pendingApprovals = approvals.filter((approval) => approval.status === "pending").length;
+  const latestDraft = drafts[0];
+
+  return {
+    mode: authStatus.mode,
+    isLiveReady: authStatus.isLiveReady,
+    environmentLabel: authStatus.requestedMode === "live" ? "Live unavailable" : "Live disabled",
+    accountLabel: authStatus.connectedAccount ? `@${authStatus.connectedAccount.username}` : "No connected account",
+    capabilities: [
+      {
+        key: "live_auth",
+        label: "Connected account and auth health",
+        state: "blocked",
+        detail:
+          authStatus.configWarnings[0] ||
+          "Live access is not available. Connect X and resolve auth health warnings before using account actions.",
+      },
+      {
+        key: "execution",
+        label: "Execution routing",
+        state: "blocked",
+        detail:
+          "The app no longer returns synthetic records when live access is unavailable. Actions will fail truthfully until the connected account is ready.",
+      },
+    ],
+    queue: buildQueueItems({ drafts, approvals }),
+    activity: buildActivityItems(logs),
+    watchlist: buildWatchlistItems({
+      watchlist: store.watchlist,
+      feedAuthors: new Map<string, string>(),
+    }),
+    profile: {
+      displayName:
+        profileState.applied?.name ||
+        profileState.draft?.name ||
+        authStatus.connectedAccount?.displayName ||
+        "Unavailable",
+      handle: authStatus.connectedAccount ? `@${authStatus.connectedAccount.username}` : "@unavailable",
+      bio: profileState.applied?.bio || profileState.draft?.bio || "No live profile surface loaded.",
+      location: profileState.applied?.location || profileState.draft?.location || "Unavailable",
+      url: profileState.applied?.url || profileState.draft?.url || "Unavailable",
+    },
+    analytics: buildAnalyticsCardSnapshot({
+      analytics,
+      pendingApprovals,
+    }),
+    composerDraft: {
+      title: latestDraft ? `${latestDraft.type[0].toUpperCase()}${latestDraft.type.slice(1)} draft` : "Compose unavailable",
+      body:
+        latestDraft?.text ||
+        "No synthetic draft was injected. Configure live X connectivity before composing against an account.",
+    },
+  };
+}
+
 export async function getConsoleSnapshot(): Promise<ConsoleSnapshot> {
   const runtime = await getConsoleRuntime();
 
@@ -322,14 +388,5 @@ export async function getConsoleSnapshot(): Promise<ConsoleSnapshot> {
     return buildLiveSnapshot();
   }
 
-  const environmentLabel = runtime.hasPartialLiveConfig
-    ? "Demo mode (live config incomplete)"
-    : "Demo mode";
-
-  return {
-    ...demoSnapshot,
-    mode: "demo",
-    isLiveReady: runtime.isLiveReady,
-    environmentLabel,
-  };
+  return buildUnavailableSnapshot();
 }

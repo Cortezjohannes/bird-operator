@@ -41,7 +41,9 @@ export function AnalyticsScreen({
           <div className="rounded-3xl border border-white/8 bg-panel/95 p-4">
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent">Posting trends</p>
             <div className="mt-4 space-y-3">
-              {snapshot.postsPerDay.map((point) => (
+              {snapshot.postsPerDay.length === 0 ? (
+                <p className="text-sm text-slate-400">No live posting data available yet.</p>
+              ) : snapshot.postsPerDay.map((point) => (
                 <div key={point.day} className="flex items-center justify-between rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3 text-sm">
                   <span className="text-slate-300">{point.day}</span>
                   <span className="font-semibold text-white">{point.count} posts</span>
@@ -53,7 +55,9 @@ export function AnalyticsScreen({
           <div className="rounded-3xl border border-white/8 bg-panel/95 p-4">
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent">Reply trends</p>
             <div className="mt-4 space-y-3">
-              {snapshot.repliesPerDay.map((point) => (
+              {snapshot.repliesPerDay.length === 0 ? (
+                <p className="text-sm text-slate-400">No live reply data available yet.</p>
+              ) : snapshot.repliesPerDay.map((point) => (
                 <div key={point.day} className="flex items-center justify-between rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3 text-sm">
                   <span className="text-slate-300">{point.day}</span>
                   <span className="font-semibold text-white">{point.count} replies</span>
@@ -75,7 +79,11 @@ export function AnalyticsScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshot.topPerformingPosts.map((post) => (
+                  {snapshot.topPerformingPosts.length === 0 ? (
+                    <tr className="border-t border-white/8 bg-panel/70">
+                      <td className="px-3 py-3 text-slate-400" colSpan={2}>No live performance rows available yet.</td>
+                    </tr>
+                  ) : snapshot.topPerformingPosts.map((post) => (
                     <tr key={post.postId} className="border-t border-white/8 bg-panel/70">
                       <td className="px-3 py-3 text-slate-200">{post.label}</td>
                       <td className="px-3 py-3 text-white">{post.score}</td>

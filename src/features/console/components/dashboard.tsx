@@ -127,7 +127,7 @@ export function ComposerCard({
         detail={
           snapshot.mode === "live"
             ? "Drafts and execution routes now run against the connected account."
-            : "Server actions and approval routing come in a later phase."
+            : "Live account actions stay blocked until the connected account is ready."
         }
       />
       <div className="rounded-2xl border border-white/8 bg-panel-strong/90 p-4">
@@ -167,7 +167,7 @@ export function DiagnosticsCard({
         detail={
           snapshot.mode === "live"
             ? "Capability status is derived from the connected account and live probes."
-            : "Live mode stays off unless the required server env vars are present."
+            : "Live connectivity is unavailable for this environment or account."
         }
       />
       <div className="space-y-3">
@@ -215,7 +215,7 @@ export function ActivityFeedCard({
         detail={
           snapshot.mode === "live"
             ? "Recent activity for the connected account and its operator workflows."
-            : "Seeded mock data for demo mode. No sensitive runtime logs are committed."
+            : "Only persisted runtime activity is shown. No synthetic log records are injected."
         }
       />
       <div className="space-y-3">

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { upsertExecutionLog } from "@/src/features/operator-store/server/store";
 import {
   getProfileRevisionById,
@@ -29,20 +28,6 @@ function now() {
   return new Date().toISOString();
 }
 
-function seedDemoRevision(): ProfileRevision {
-  return {
-    id: "profile-demo-1",
-    name: "Console Demo",
-    bio: "Mission-control workspace for deliberate X operations, approvals, and safe fallback planning.",
-    url: "https://example.com/operator-console",
-    location: "Remote Ops",
-    avatar_asset_ref: null,
-    banner_asset_ref: null,
-    created_at: "2026-03-27T10:00:00.000Z",
-    applied_at: "2026-03-27T10:00:00.000Z",
-  };
-}
-
 async function appendProfileLog(input: Omit<ExecutionLogRecord, "id" | "timestamp">) {
   const record: ExecutionLogRecord = {
     id: createId("exec"),
@@ -54,23 +39,11 @@ async function appendProfileLog(input: Omit<ExecutionLogRecord, "id" | "timestam
 }
 
 export async function ensureProfileSeedData() {
-  const runtime = await getConsoleRuntime();
   const revisions = await listProfileRevisions();
   if (revisions.length > 0) {
     return revisions;
   }
-
-  if (runtime.mode === "live") {
-    return [];
-  }
-
-  const revision = seedDemoRevision();
-  await upsertProfileRevision(revision);
-  await updateProfileState({
-    currentAppliedRevisionId: revision.id,
-    currentDraftRevisionId: revision.id,
-  });
-  return [revision];
+  return [];
 }
 
 export async function getProfileEditorState() {

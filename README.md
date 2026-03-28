@@ -37,11 +37,10 @@ Raw X tokens are never handed to the operator.
 - Trusted Operator Mode with per-session capability grants
 - profile surface editing for public profile fields only
 - structured sanitized logs and basic analytics
-- demo mode by default and live mode only when configured
+- live account execution with explicit failures when connectivity is unavailable
 
 ## Safety Defaults
 
-- demo mode is the default
 - app login is required before the dashboard or protected APIs can be used
 - new pairings default to Approval Mode, not Trusted Operator Mode
 - default grants are minimal and safe
@@ -52,10 +51,7 @@ Raw X tokens are never handed to the operator.
 
 ## Screenshots
 
-Placeholder assets are included so the repo reads cleanly on GitHub before sanitized demo captures are added.
-
-- [Console overview placeholder](./public/screenshots/console-overview.svg)
-- [Approval lane placeholder](./public/screenshots/approval-lane.svg)
+Sanitized live captures are intentionally not committed yet. Add them later once you have scrubbed account data, operator fingerprints, and approval artifacts.
 
 ## Local Development
 
@@ -92,7 +88,7 @@ npm run dev
 
 ## Live X OAuth Setup
 
-To use live X connectivity instead of demo mode, set:
+To use live X connectivity, set:
 
 - `X_OPERATOR_CONSOLE_MODE=live`
 - `APP_BASE_URL` or `APP_URL`
@@ -229,7 +225,7 @@ More deployment notes:
 
 - account-security settings are intentionally out of scope
 - browser fallback is architecture-only right now, not a shipped automation path
-- media upload is still placeholder-level
+- media upload still expects existing uploaded media ids
 - the owner auth model is currently single-owner-first
 
 ## Repo Safety

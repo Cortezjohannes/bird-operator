@@ -60,7 +60,7 @@ export type ExecutionResponseMap = {
 export type FallbackResultStatus =
   | "not_available"
   | "not_attempted"
-  | "placeholder"
+  | "unconfigured"
   | "succeeded"
   | "failed";
 
@@ -98,7 +98,7 @@ export type NormalizedActionResult<T> =
 export interface ExecutionStatusPanel {
   enabled: boolean;
   available: boolean;
-  provider: "placeholder";
+  provider: "fallback_interface";
   headline: string;
   detail: string;
   nextStep: string;
