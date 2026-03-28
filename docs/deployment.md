@@ -90,7 +90,7 @@ That covers:
 - drafts
 - watchlists
 
-When `DATABASE_URL` is absent, the app falls back to the local file store for development only.
+When `DATABASE_URL` is absent, the app only falls back to the local file store for development. In hosted production this is treated as an unhealthy configuration.
 
 ## Post-Deploy Checklist
 

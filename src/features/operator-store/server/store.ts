@@ -288,9 +288,11 @@ export async function getPersistenceStatus() {
   return {
     backend,
     configured: false,
-    healthy: true,
+    healthy: process.env.NODE_ENV !== "production",
     message:
-      "Using local file persistence. This is fine for local development, but not recommended for Railway production deployments.",
+      process.env.NODE_ENV === "production"
+        ? "Production is running without DATABASE_URL. Local file persistence is not acceptable for hosted deployment."
+        : "Using local file persistence for local development.",
   };
 }
 

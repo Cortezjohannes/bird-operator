@@ -1,5 +1,4 @@
 export type XAuthMethod =
-  | "demo"
   | "oauth1"
   | "oauth2_user"
   | "bearer"
@@ -120,14 +119,14 @@ export interface CapabilityTestResult {
   capability: XCapability;
   supported: boolean;
   testedAt: string;
-  mode: "demo" | "live";
+  mode: "unavailable" | "live";
   authMethodUsed: XAuthMethod;
   error: string | null;
 }
 
 export interface AuthStatusPayload {
-  mode: "demo" | "live";
-  requestedMode: "demo" | "live";
+  mode: "unavailable" | "live";
+  requestedMode: "unavailable" | "live";
   isLiveReady: boolean;
   hasPartialLiveConfig: boolean;
   detectedAuthMethods: DetectedAuthMethod[];

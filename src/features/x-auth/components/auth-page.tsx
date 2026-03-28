@@ -22,6 +22,10 @@ function formatTimestamp(value: string) {
   }).format(new Date(value));
 }
 
+function formatModeLabel(mode: "live" | "unavailable") {
+  return mode === "live" ? "live" : "unavailable";
+}
+
 export function AuthPage({
   authStatus,
   capabilityResults,
@@ -41,10 +45,10 @@ export function AuthPage({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-accent">
-                  {authStatus.mode} mode
+                  {formatModeLabel(authStatus.mode)} mode
                 </span>
                 <span className="rounded-full border border-white/8 bg-white/5 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                  Requested {authStatus.requestedMode}
+                  Requested {formatModeLabel(authStatus.requestedMode)}
                 </span>
                 <Link
                   href="/"
@@ -110,7 +114,7 @@ export function AuthPage({
                     Current mode
                   </dt>
                   <dd className="mt-2 text-sm font-medium text-slate-100">
-                    {authStatus.mode}
+                    {formatModeLabel(authStatus.mode)}
                   </dd>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3">

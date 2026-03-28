@@ -177,7 +177,7 @@ The simplest reliable hosted deployment for this app is:
 - one Railway web service for Next.js
 - one Railway Postgres service for persistence
 
-The app will automatically use Postgres when `DATABASE_URL` is present. If `DATABASE_URL` is missing, it falls back to the local file store, which is fine for local development but not what you want on Railway.
+The app will automatically use Postgres when `DATABASE_URL` is present. Without `DATABASE_URL`, the app only uses local file persistence for local development and reports production persistence as unhealthy.
 
 Recommended Railway env vars:
 - `APP_BASE_URL` or `APP_URL`
@@ -224,7 +224,7 @@ More deployment notes:
 ## Important Limits
 
 - account-security settings are intentionally out of scope
-- browser fallback is architecture-only right now, not a shipped automation path
+- browser fallback remains an internal future integration point, not an operator-facing automation feature
 - media upload still expects existing uploaded media ids
 - the owner auth model is currently single-owner-first
 

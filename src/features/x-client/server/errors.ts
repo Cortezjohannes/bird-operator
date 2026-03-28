@@ -23,7 +23,7 @@ export function createNormalizedError(input: {
 }
 
 export function createLogEntry(input: {
-  mode: "demo" | "live";
+  mode: "unavailable" | "live";
   operation: string;
   endpointLabel: string;
   authStrategy: XAuthMethod;

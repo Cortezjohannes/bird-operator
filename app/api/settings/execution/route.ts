@@ -14,6 +14,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as { browserFallbackEnabled?: boolean };
+  if (body.browserFallbackEnabled) {
+    return NextResponse.json(
+      {
+        error: {
+          message:
+            "Browser fallback is not shipped in this product build. Install a reviewed fallback executor before enabling it.",
+        },
+      },
+      { status: 409 },
+    );
+  }
   const settings = await setExecutionSettings({
     browserFallbackEnabled: Boolean(body.browserFallbackEnabled),
   });

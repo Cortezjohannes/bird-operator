@@ -250,7 +250,7 @@ async function logOperatorAction(input: {
   operatorSession: OperatorSession;
   relatedTweetId?: string | null;
   executionPath: ActionExecutionPath;
-  authMethod?: "system" | "demo" | "oauth1" | "oauth2_user" | "bearer" | "client_credentials" | "none";
+  authMethod?: "system" | "oauth1" | "oauth2_user" | "bearer" | "client_credentials" | "none";
 }) {
   return recordActionLog({
     actor: input.actor,
@@ -977,7 +977,7 @@ export async function executeApprovedOperatorAction(input: {
       ? "Approved operator action executed successfully."
       : result.error.message,
     authMethod:
-      result.metadata.mode === "demo" ? "demo" : result.metadata.authMethod,
+      result.metadata.mode === "unavailable" ? "none" : result.metadata.authMethod,
     operatorSessionId: session.id,
     operatorSessionMode: session.mode,
     executionPath: "auto_executed",
@@ -1105,7 +1105,7 @@ export async function executeOperatorSessionAction(input: {
     operatorSession: session,
     executionPath: session.mode === "trusted_operator" ? "auto_executed" : "direct",
     authMethod:
-      result.metadata.mode === "demo" ? "demo" : result.metadata.authMethod,
+      result.metadata.mode === "unavailable" ? "none" : result.metadata.authMethod,
   });
 
   if (!result.ok) {
