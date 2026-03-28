@@ -172,7 +172,7 @@ export async function postDraftNow(
     }
   }
 
-  if (!liveExecutionAllowed()) {
+  if (!(await liveExecutionAllowed())) {
     const failed = await markDraftState(draft, "failed", {
       message: "Live posting is not allowed without live auth readiness.",
       status: 400,

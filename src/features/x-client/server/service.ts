@@ -2,7 +2,10 @@ import "server-only";
 
 import { capabilityAuthPreference, capabilityOrder } from "@/src/features/x-auth/capabilities";
 import { recordActionLog } from "@/src/features/logs/server/service";
-import { getDetectedAuthMethods } from "@/src/features/x-auth/server/auth-config";
+import {
+  getCurrentConnectedXAccountSummary,
+  getDetectedAuthMethodsForCurrentUser,
+} from "@/src/features/x-auth/server/connected-account";
 import type {
   CapabilityTestResult,
   XAuthMethod,
@@ -137,17 +140,17 @@ function extractData<T>(body: unknown, fallback: T): T {
   return fallback;
 }
 
-function getConfiguredLiveStrategies() {
-  return getDetectedAuthMethods()
+async function getConfiguredLiveStrategies() {
+  return (await getDetectedAuthMethodsForCurrentUser())
     .filter((method) => method.canBeUsedForLiveTests)
     .map((method) => method.key);
 }
 
-function chooseAuthStrategy(
+async function chooseAuthStrategy(
   capability: XCapability,
   preferred?: XAuthMethod,
-): XAuthMethod {
-  const available = new Set(getConfiguredLiveStrategies());
+): Promise<XAuthMethod> {
+  const available = new Set(await getConfiguredLiveStrategies());
 
   if (preferred && available.has(preferred)) {
     return preferred;
@@ -210,7 +213,7 @@ async function executeLiveRequest<T>(input: {
   payloadSummary?: string;
   relatedTweetId?: string | null;
 }) {
-  const authStrategy = chooseAuthStrategy(
+  const authStrategy = await chooseAuthStrategy(
     input.capability,
     input.preferredAuthStrategy,
   );
@@ -809,7 +812,7 @@ function createLiveClient(): XClient {
       });
     },
     async updateProfileMedia(input) {
-      const authStrategy = chooseAuthStrategy(
+      const authStrategy = await chooseAuthStrategy(
         "update_profile_media",
         "oauth1",
       );
@@ -900,19 +903,24 @@ function createCapabilityResult(
   };
 }
 
-function getCacheKey() {
+async function getCacheKey() {
+  const detected = await getDetectedAuthMethodsForCurrentUser();
+  const account = await getCurrentConnectedXAccountSummary();
   return JSON.stringify({
     requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "demo",
-    oauth1: !!process.env.X_APP_KEY,
-    oauth2: !!process.env.X_OAUTH2_ACCESS_TOKEN,
-    bearer: !!process.env.X_BEARER_TOKEN,
-    client: !!process.env.X_CLIENT_ID,
+    methods: detected.map((method) => ({
+      key: method.key,
+      configured: method.configured,
+      detectedFields: method.detectedFields,
+    })),
+    accountId: account?.xUserId || null,
+    scopes: account?.tokenStatus.scopes || [],
+    expiresAt: account?.tokenStatus.expiresAt || null,
   });
 }
 
 export async function runCapabilityTests(options?: { force?: boolean }) {
-  const runtime = getConsoleRuntime();
-  const cacheKey = getCacheKey();
+  const cacheKey = await getCacheKey();
 
   if (
     !options?.force &&
@@ -922,7 +930,7 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
     return globalThis.__xOperatorCapabilityCache.results;
   }
 
-  const client = createXClient();
+  const client = await createXClient();
   const results = await Promise.all(
     capabilityOrder.map(async (capability) => {
       switch (capability) {
@@ -983,15 +991,12 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
     }),
   );
 
-  globalThis.__xOperatorCapabilityCache =
-    runtime.mode === "demo"
-      ? { key: cacheKey, results }
-      : { key: cacheKey, results };
+  globalThis.__xOperatorCapabilityCache = { key: cacheKey, results };
 
   return results;
 }
 
-export function createXClient(): XClient {
-  const runtime = getConsoleRuntime();
+export async function createXClient(): Promise<XClient> {
+  const runtime = await getConsoleRuntime();
   return runtime.mode === "live" ? createLiveClient() : createDemoClient();
 }

@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { ConsoleMode } from "@/src/features/console/types";
-import { getDetectedAuthMethods } from "@/src/features/x-auth/server/auth-config";
+import { getDetectedAuthMethodsForCurrentUser } from "@/src/features/x-auth/server/connected-account";
 
-export function getConsoleRuntime() {
-  const detectedAuthMethods = getDetectedAuthMethods();
+export async function getConsoleRuntime() {
+  const detectedAuthMethods = await getDetectedAuthMethodsForCurrentUser();
   const requestedMode: ConsoleMode =
     process.env.X_OPERATOR_CONSOLE_MODE === "live" ? "live" : "demo";
   const configuredLiveMethods = detectedAuthMethods.filter(

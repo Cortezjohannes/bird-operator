@@ -4,8 +4,8 @@ import { demoSnapshot } from "@/src/features/console/data/demo-snapshot";
 import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import type { ConsoleSnapshot } from "@/src/features/console/types";
 
-export function getConsoleSnapshot(): ConsoleSnapshot {
-  const runtime = getConsoleRuntime();
+export async function getConsoleSnapshot(): Promise<ConsoleSnapshot> {
+  const runtime = await getConsoleRuntime();
 
   if (runtime.mode === "live") {
     return {
@@ -18,7 +18,7 @@ export function getConsoleSnapshot(): ConsoleSnapshot {
         ...capability,
         detail:
           capability.key === "write"
-            ? "Live credentials detected. Real execution plumbing is reserved for a follow-up phase."
+            ? "Live account connectivity is enabled. Execution still flows through capability truth checks, approvals, and server-side controls."
             : capability.detail,
       })),
     };

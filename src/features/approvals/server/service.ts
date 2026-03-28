@@ -235,6 +235,69 @@ export async function approveApprovalRequest(input: {
     typeof approval.payload_json.profileRevisionId === "string"
       ? approval.payload_json.profileRevisionId
       : null;
+  const operatorSessionId =
+    typeof approval.payload_json.operatorSessionId === "string"
+      ? approval.payload_json.operatorSessionId
+      : null;
+  const operatorExecution =
+    typeof approval.payload_json.operatorExecution === "object" &&
+    approval.payload_json.operatorExecution !== null
+      ? (approval.payload_json.operatorExecution as {
+          action?: string;
+          payload?: Record<string, unknown>;
+        })
+      : null;
+
+  if (operatorSessionId && operatorExecution?.action) {
+    const approved = await updateApprovalStatus(approval, "approved", reviewer);
+    await appendExecutionLog({
+      event_type: "approval_approved",
+      action_type: approval.action_type,
+      actor: reviewer,
+      target_id: approval.id,
+      message: `${approval.action_type} approved for operator execution.`,
+      metadata: approval.payload_json,
+    });
+    await recordActionLog({
+      actor: reviewer,
+      actorType: "owner",
+      actionType: "approval_approved",
+      targetType: "approval",
+      targetId: approval.id,
+      payloadSummary: approval.reason,
+      resultStatus: "success",
+      resultExcerpt: `${approval.action_type} approved.`,
+      authMethod: "system",
+    });
+
+    const { executeApprovedOperatorAction } = await import(
+      "@/src/features/operator-pairing/server/service"
+    );
+    const execution = await executeApprovedOperatorAction({
+      sessionId: operatorSessionId,
+      action: operatorExecution.action as Parameters<
+        typeof executeApprovedOperatorAction
+      >[0]["action"],
+      payload:
+        (operatorExecution.payload || {}) as Parameters<
+          typeof executeApprovedOperatorAction
+        >[0]["payload"],
+      reviewer,
+    });
+
+    if (!execution.ok) {
+      return {
+        ok: false as const,
+        error: {
+          message: execution.message,
+          status: 400,
+          code: "operator_execution_failed",
+        },
+      };
+    }
+
+    return { ok: true as const, approval: approved, draft: null };
+  }
 
   if (!draftId && !profileRevisionId) {
     const updated = await updateApprovalStatus(approval, "approved", reviewer);
@@ -248,6 +311,7 @@ export async function approveApprovalRequest(input: {
     });
     await recordActionLog({
       actor: reviewer,
+      actorType: "owner",
       actionType: "approval_approved",
       targetType: "approval",
       targetId: approval.id,
@@ -271,6 +335,7 @@ export async function approveApprovalRequest(input: {
     });
     await recordActionLog({
       actor: reviewer,
+      actorType: "owner",
       actionType: "approval_approved",
       targetType: "approval",
       targetId: approval.id,
@@ -330,6 +395,7 @@ export async function approveApprovalRequest(input: {
   });
   await recordActionLog({
     actor: reviewer,
+    actorType: "owner",
     actionType: "approval_approved",
     targetType: "approval",
     targetId: approval.id,

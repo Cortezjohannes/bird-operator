@@ -20,7 +20,19 @@ export interface ExecutionSettings {
   browserFallbackEnabled: boolean;
 }
 
+export interface StoredAppUser {
+  id: string;
+  email: string;
+  role: "owner" | "operator";
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
+}
+
+export type PersistenceBackend = "file" | "postgres";
+
 export interface OperatorStoreSnapshot {
+  appUsers: Record<string, StoredAppUser>;
   triage: Record<string, StoredTweetTriage>;
   watchlist: Record<string, StoredWatchlistEntry>;
   drafts: Record<string, import("@/src/features/drafts/types").DraftRecord>;
@@ -31,4 +43,7 @@ export interface OperatorStoreSnapshot {
   profileState: import("@/src/features/profile/types").ProfileState;
   actionLogs: import("@/src/features/logs/types").ActionLog[];
   executionSettings: ExecutionSettings;
+  connectedXAccounts: Record<string, import("@/src/features/x-auth/types").StoredConnectedXAccount>;
+  pairingRequests: Record<string, import("@/src/features/operator-pairing/types").OperatorPairingRequest>;
+  operatorSessions: Record<string, import("@/src/features/operator-pairing/types").OperatorSession>;
 }

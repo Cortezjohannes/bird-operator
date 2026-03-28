@@ -11,7 +11,7 @@ function sortTweets(tweets: FeedTweet[]) {
 }
 
 export async function getFeedTweets() {
-  const client = createXClient();
+  const client = await createXClient();
   const [timelineResult, store] = await Promise.all([
     client.getTimeline(),
     readOperatorStore(),
@@ -34,7 +34,7 @@ export async function getFeedTweets() {
 }
 
 export async function getMentionTweets() {
-  const client = createXClient();
+  const client = await createXClient();
   const [mentionsResult, store] = await Promise.all([
     client.getMentions(),
     readOperatorStore(),

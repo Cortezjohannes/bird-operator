@@ -8,13 +8,27 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsAuthPage() {
+export default async function SettingsAuthPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; connected?: string }>;
+}) {
   noStore();
+  const resolvedSearchParams = await searchParams;
 
   const [authStatus, capabilityResults] = await Promise.all([
-    Promise.resolve(getAuthStatus()),
+    getAuthStatus(),
     runCapabilityTests(),
   ]);
 
-  return <AuthPage authStatus={authStatus} capabilityResults={capabilityResults} />;
+  return (
+    <AuthPage
+      authStatus={authStatus}
+      capabilityResults={capabilityResults}
+      statusMessage={resolvedSearchParams.connected
+        ? `Connected @${resolvedSearchParams.connected}.`
+        : null}
+      errorMessage={resolvedSearchParams.error || null}
+    />
+  );
 }

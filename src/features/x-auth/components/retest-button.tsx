@@ -15,7 +15,7 @@ export function RetestButton() {
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            const response = await fetch("/api/auth/retest", { method: "POST" });
+            const response = await fetch("/api/x/retest-capabilities", { method: "POST" });
             if (!response.ok) {
               setError("Retest failed. Check server logs for sanitized diagnostics.");
               return;

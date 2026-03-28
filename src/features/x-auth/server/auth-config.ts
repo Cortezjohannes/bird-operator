@@ -3,17 +3,12 @@ import "server-only";
 import type {
   BearerTokenConfig,
   ClientCredentialsConfig,
-  DetectedAuthMethod,
   OAuth1TokenSet,
-  OAuth2TokenSet,
 } from "@/src/features/x-auth/types";
+import { getAppBaseUrl } from "@/src/features/auth/server/config";
 
 function hasValue(value: string | undefined) {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function countDefined(values: Array<string | undefined>) {
-  return values.filter(hasValue).length;
 }
 
 export function getOAuth1TokenSet(): OAuth1TokenSet | null {
@@ -25,20 +20,6 @@ export function getOAuth1TokenSet(): OAuth1TokenSet | null {
   };
 
   return Object.values(tokenSet).every(hasValue) ? tokenSet : null;
-}
-
-export function getOAuth2TokenSet(): OAuth2TokenSet | null {
-  const accessToken = process.env.X_OAUTH2_ACCESS_TOKEN || "";
-  if (!hasValue(accessToken)) {
-    return null;
-  }
-
-  return {
-    accessToken,
-    refreshToken: process.env.X_OAUTH2_REFRESH_TOKEN || undefined,
-    clientId: process.env.X_CLIENT_ID || undefined,
-    clientSecret: process.env.X_CLIENT_SECRET || undefined,
-  };
 }
 
 export function getBearerTokenConfig(): BearerTokenConfig | null {
@@ -54,56 +35,46 @@ export function getClientCredentialsConfig(): ClientCredentialsConfig | null {
     : null;
 }
 
-export function getDetectedAuthMethods(): DetectedAuthMethod[] {
+export function getXOAuthCallbackUrl() {
+  const baseUrl = getAppBaseUrl();
+  if (!hasValue(baseUrl)) {
+    return "";
+  }
+
+  return `${baseUrl.replace(/\/$/, "")}/api/x/callback`;
+}
+
+export function getXOAuthScopes() {
+  const configured = process.env.X_OAUTH_SCOPES || "";
+  if (hasValue(configured)) {
+    return configured
+      .split(/[,\s]+/)
+      .map((scope) => scope.trim())
+      .filter(Boolean);
+  }
+
   return [
-    {
-      key: "oauth1",
-      label: "OAuth 1.0a user context",
-      configured: getOAuth1TokenSet() !== null,
-      detectedFields: countDefined([
-        process.env.X_APP_KEY,
-        process.env.X_APP_SECRET,
-        process.env.X_ACCESS_TOKEN,
-        process.env.X_ACCESS_TOKEN_SECRET,
-      ]),
-      expectedFields: 4,
-      canBeUsedForLiveTests: getOAuth1TokenSet() !== null,
-      summary: "App key/secret plus access token and token secret.",
-    },
-    {
-      key: "oauth2_user",
-      label: "OAuth 2.0 user token set",
-      configured: getOAuth2TokenSet() !== null,
-      detectedFields: countDefined([
-        process.env.X_OAUTH2_ACCESS_TOKEN,
-        process.env.X_OAUTH2_REFRESH_TOKEN,
-        process.env.X_CLIENT_ID,
-        process.env.X_CLIENT_SECRET,
-      ]),
-      expectedFields: 1,
-      canBeUsedForLiveTests: getOAuth2TokenSet() !== null,
-      summary: "User access token with optional refresh token and client credentials.",
-    },
-    {
-      key: "bearer",
-      label: "Bearer token",
-      configured: getBearerTokenConfig() !== null,
-      detectedFields: countDefined([process.env.X_BEARER_TOKEN]),
-      expectedFields: 1,
-      canBeUsedForLiveTests: getBearerTokenConfig() !== null,
-      summary: "Read-oriented app token. Useful for limited live diagnostics.",
-    },
-    {
-      key: "client_credentials",
-      label: "Client ID / client secret",
-      configured: getClientCredentialsConfig() !== null,
-      detectedFields: countDefined([
-        process.env.X_CLIENT_ID,
-        process.env.X_CLIENT_SECRET,
-      ]),
-      expectedFields: 2,
-      canBeUsedForLiveTests: false,
-      summary: "Detected and modeled, but not used alone for live probes in this phase.",
-    },
+    "tweet.read",
+    "users.read",
+    "tweet.write",
+    "like.write",
+    "follows.write",
+    "bookmark.write",
+    "offline.access",
   ];
+}
+
+export function getXOAuthClientConfig() {
+  const clientId = process.env.X_CLIENT_ID || "";
+  const clientSecret = process.env.X_CLIENT_SECRET || "";
+  const callbackUrl = getXOAuthCallbackUrl();
+
+  return {
+    clientId,
+    clientSecret,
+    callbackUrl,
+    scopes: getXOAuthScopes(),
+    configured:
+      hasValue(clientId) && hasValue(clientSecret) && hasValue(callbackUrl),
+  };
 }

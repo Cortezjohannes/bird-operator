@@ -194,7 +194,7 @@ export async function executeAction<TAction extends ExecutionActionType>(
   ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
 >> {
   const settings = await getExecutionSettings();
-  const client = createXClient();
+  const client = await createXClient();
   const apiResult = (await executeApiAction(client, action, payload)) as XServiceResult<
     ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
   >;
@@ -234,6 +234,7 @@ export async function logExecutionOutcome(input: {
 }
 
 export function liveExecutionAllowed() {
-  const runtime = getConsoleRuntime();
-  return runtime.mode === "demo" || runtime.isLiveReady;
+  return getConsoleRuntime().then((runtime) => {
+    return runtime.mode === "demo" || runtime.isLiveReady;
+  });
 }

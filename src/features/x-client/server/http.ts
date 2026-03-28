@@ -5,8 +5,12 @@ import crypto from "node:crypto";
 import {
   getBearerTokenConfig,
   getOAuth1TokenSet,
-  getOAuth2TokenSet,
 } from "@/src/features/x-auth/server/auth-config";
+import {
+  getStoredOAuth2TokenSetForCurrentUser,
+  createMissingConnectionMessage,
+} from "@/src/features/x-auth/server/connected-account";
+import { refreshCurrentUserOAuth2TokenIfNeeded } from "@/src/features/x-auth/server/oauth-flow";
 import { sanitizeErrorMessage } from "@/src/features/x-auth/server/sanitize";
 import type { XAuthMethod } from "@/src/features/x-auth/types";
 import { createNormalizedError } from "@/src/features/x-client/server/errors";
@@ -99,7 +103,7 @@ function createOAuth1Header(
   return { url: url.toString(), authorization: `OAuth ${header}` };
 }
 
-function createRequestHeaders(input: {
+async function createRequestHeaders(input: {
   authStrategy: XAuthMethod;
   method: "GET" | "POST" | "DELETE";
   rawUrl: string;
@@ -122,14 +126,18 @@ function createRequestHeaders(input: {
   }
 
   if (input.authStrategy === "oauth2_user") {
-    const tokenSet = getOAuth2TokenSet();
+    const tokenSet =
+      (await refreshCurrentUserOAuth2TokenIfNeeded()) ||
+      (await getStoredOAuth2TokenSetForCurrentUser());
     if (!tokenSet) {
       throw createNormalizedError({
         code: "auth_not_configured",
         status: 0,
         endpointLabel: input.rawUrl,
         authStrategy: input.authStrategy,
-        message: "OAuth 2.0 user token is not fully configured.",
+        message: createMissingConnectionMessage(
+          "OAuth 2.0 connected user token is not available.",
+        ),
       });
     }
 
@@ -221,7 +229,7 @@ export async function performXRequest(input: {
   const hasJsonBody = input.body !== undefined;
 
   try {
-    const resolved = createRequestHeaders({
+    const resolved = await createRequestHeaders({
       authStrategy: input.authStrategy,
       method,
       rawUrl,
