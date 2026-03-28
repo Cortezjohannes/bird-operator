@@ -8,9 +8,13 @@ import {
 } from "@/src/features/x-auth/server/auth-config";
 import {
   getStoredOAuth2TokenSetForCurrentUser,
+  getStoredOAuth2TokenSetForScope,
   createMissingConnectionMessage,
 } from "@/src/features/x-auth/server/connected-account";
-import { refreshCurrentUserOAuth2TokenIfNeeded } from "@/src/features/x-auth/server/oauth-flow";
+import {
+  refreshCurrentUserOAuth2TokenIfNeeded,
+  refreshScopedOAuth2TokenIfNeeded,
+} from "@/src/features/x-auth/server/oauth-flow";
 import { sanitizeErrorMessage } from "@/src/features/x-auth/server/sanitize";
 import type { XAuthMethod } from "@/src/features/x-auth/types";
 import { createNormalizedError } from "@/src/features/x-client/server/errors";
@@ -109,6 +113,10 @@ async function createRequestHeaders(input: {
   rawUrl: string;
   queryParams: Record<string, string>;
   hasJsonBody: boolean;
+  authContext?: {
+    appUserId?: string | null;
+    expectedXUserId?: string | null;
+  };
 }) {
   if (input.authStrategy === "oauth1") {
     const oauth = createOAuth1Header(
@@ -127,8 +135,12 @@ async function createRequestHeaders(input: {
 
   if (input.authStrategy === "oauth2_user") {
     const tokenSet =
-      (await refreshCurrentUserOAuth2TokenIfNeeded()) ||
-      (await getStoredOAuth2TokenSetForCurrentUser());
+      (input.authContext
+        ? await refreshScopedOAuth2TokenIfNeeded(input.authContext)
+        : await refreshCurrentUserOAuth2TokenIfNeeded()) ||
+      (input.authContext
+        ? await getStoredOAuth2TokenSetForScope(input.authContext)
+        : await getStoredOAuth2TokenSetForCurrentUser());
     if (!tokenSet) {
       throw createNormalizedError({
         code: "auth_not_configured",
@@ -219,6 +231,10 @@ export async function performXRequest(input: {
   method?: "GET" | "POST" | "DELETE";
   query?: Record<string, string>;
   body?: unknown;
+  authContext?: {
+    appUserId?: string | null;
+    expectedXUserId?: string | null;
+  };
 }): Promise<
   | { ok: true; status: number; body: unknown }
   | { ok: false; error: XNormalizedError }
@@ -235,6 +251,7 @@ export async function performXRequest(input: {
       rawUrl,
       queryParams: query,
       hasJsonBody,
+      authContext: input.authContext,
     });
 
     const response = await fetch(resolved.url, {

@@ -959,7 +959,13 @@ export async function executeApprovedOperatorAction(input: {
     };
   }
 
-  const result = await executeAction(input.action, input.payload as never);
+  const result = await executeAction(input.action, input.payload as never, {
+    xScope: {
+      appUserId: session.paired_by_user_id,
+      expectedXUserId: session.connected_x_account_id,
+      strictLive: true,
+    },
+  });
   await recordActionLog({
     actor: input.reviewer || session.operator_instance_id,
     actorType: input.reviewer ? "owner" : "operator",
@@ -1074,7 +1080,13 @@ export async function executeOperatorSessionAction(input: {
     };
   }
 
-  const result = await executeAction(input.action, input.payload as never);
+  const result = await executeAction(input.action, input.payload as never, {
+    xScope: {
+      appUserId: session.paired_by_user_id,
+      expectedXUserId: session.connected_x_account_id,
+      strictLive: true,
+    },
+  });
   await logOperatorAction({
     actor: session.operator_instance_id,
     actionType: `operator.${input.action}`,

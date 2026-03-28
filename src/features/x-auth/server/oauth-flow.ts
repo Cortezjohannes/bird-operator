@@ -12,6 +12,8 @@ import { recordActionLog } from "@/src/features/logs/server/service";
 import {
   getCurrentAppUserId,
   getCurrentConnectedXAccount,
+  getScopedConnectedXAccount,
+  getStoredOAuth2TokenSetForScope,
   getStoredOAuth2TokenSetForCurrentUser,
   updateConnectedAccountValidation,
   upsertOAuth2Connection,
@@ -192,6 +194,29 @@ async function refreshCurrentUserTokenBundle(bundle: StoredOAuth2TokenBundle) {
     createdAt: bundle.createdAt,
     updatedAt: new Date().toISOString(),
   } satisfies StoredOAuth2TokenBundle;
+}
+
+async function updateConnectedAccountValidationForAppUser(input: {
+  appUserId: string;
+  xUserId: string;
+  username: string;
+  displayName: string;
+  bundle: StoredOAuth2TokenBundle;
+}) {
+  const existing = await getScopedConnectedXAccount({
+    appUserId: input.appUserId,
+    expectedXUserId: input.xUserId,
+  });
+
+  return upsertOAuth2Connection({
+    appUserId: input.appUserId,
+    xUserId: input.xUserId,
+    username: input.username,
+    displayName: input.displayName,
+    bundle: input.bundle,
+    authMethodsAvailable: existing?.authMethodsAvailable || ["oauth2_user"],
+    lastValidatedAt: new Date().toISOString(),
+  });
 }
 
 export async function createXConnectUrl() {
@@ -381,8 +406,19 @@ async function fetchAuthenticatedUserProfile(accessToken: string) {
 }
 
 export async function refreshCurrentUserOAuth2TokenIfNeeded() {
-  const existing = await getStoredOAuth2TokenSetForCurrentUser();
-  const connected = await getCurrentConnectedXAccount();
+  return refreshScopedOAuth2TokenIfNeeded();
+}
+
+export async function refreshScopedOAuth2TokenIfNeeded(input?: {
+  appUserId?: string | null;
+  expectedXUserId?: string | null;
+}) {
+  const existing = input
+    ? await getStoredOAuth2TokenSetForScope(input)
+    : await getStoredOAuth2TokenSetForCurrentUser();
+  const connected = input
+    ? await getScopedConnectedXAccount(input)
+    : await getCurrentConnectedXAccount();
   if (!existing || !connected) {
     return null;
   }
@@ -412,7 +448,8 @@ export async function refreshCurrentUserOAuth2TokenIfNeeded() {
   }
 
   const me = await fetchAuthenticatedUserProfile(refreshed.accessToken);
-  await updateConnectedAccountValidation({
+  await updateConnectedAccountValidationForAppUser({
+    appUserId: connected.appUserId,
     xUserId: me.id,
     username: me.username,
     displayName: me.name,
