@@ -422,8 +422,6 @@ export async function refreshCurrentUserOAuth2TokenIfNeeded() {
   return {
     accessToken: refreshed.accessToken,
     refreshToken: refreshed.refreshToken,
-    clientId: getXOAuthClientConfig().clientId || undefined,
-    clientSecret: getXOAuthClientConfig().clientSecret || undefined,
     expiresAt: refreshed.expiresAt,
     scopes: refreshed.scopes,
   };
@@ -462,10 +460,23 @@ export async function validateCurrentConnectedAccount() {
 
 export function getOAuthHostingState() {
   const config = getXOAuthClientConfig();
+  const warnings: string[] = [];
+
+  if (!config.callbackUrl) {
+    warnings.push("APP_BASE_URL is missing or invalid, so the hosted callback URL cannot be derived.");
+  }
+  if (!config.configured) {
+    warnings.push("Hosted X OAuth is not fully configured. Set APP_BASE_URL, X_CLIENT_ID, and X_CLIENT_SECRET.");
+  }
+  if (!isTokenEncryptionConfigured()) {
+    warnings.push("X_TOKEN_ENCRYPTION_KEY is missing or too short for encrypted token storage.");
+  }
+
   return {
     configured: config.configured,
     callbackUrl: config.callbackUrl || null,
     baseUrl: getAppBaseUrl() || null,
     encryptionEnabled: isTokenEncryptionConfigured(),
+    warnings,
   };
 }

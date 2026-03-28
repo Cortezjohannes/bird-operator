@@ -19,6 +19,7 @@ export async function authenticateOwnerLogin(input: {
   if (!setupState.configured) {
     await recordActionLog({
       actor: "system",
+      actorType: "system",
       actionType: "auth.login",
       targetType: "system",
       payloadSummary: "Owner login attempted before auth setup completed.",
@@ -38,6 +39,7 @@ export async function authenticateOwnerLogin(input: {
   if (!limit.allowed) {
     await recordActionLog({
       actor: normalizedEmail || "unknown",
+      actorType: "system",
       actionType: "auth.login",
       targetType: "system",
       payloadSummary: "Owner login attempt rate limited.",
@@ -55,6 +57,7 @@ export async function authenticateOwnerLogin(input: {
   if (normalizedEmail !== getOwnerEmail()) {
     await recordActionLog({
       actor: normalizedEmail || "unknown",
+      actorType: "system",
       actionType: "auth.login",
       targetType: "system",
       payloadSummary: "Owner login failed.",
@@ -73,6 +76,7 @@ export async function authenticateOwnerLogin(input: {
   if (!valid) {
     await recordActionLog({
       actor: normalizedEmail,
+      actorType: "system",
       actionType: "auth.login",
       targetType: "system",
       payloadSummary: "Owner login failed.",
@@ -97,6 +101,7 @@ export async function authenticateOwnerLogin(input: {
 
   await recordActionLog({
     actor: normalizedEmail,
+    actorType: "owner",
     actionType: "auth.login",
     targetType: "system",
     payloadSummary: "Owner session established.",

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getConsoleRuntime } from "@/src/features/console/server/runtime";
+import { getAuthSetupState } from "@/src/features/auth/server/config";
 import {
   getCurrentConnectedXAccountSummary,
   getDetectedAuthMethodsForCurrentUser,
@@ -23,6 +24,7 @@ export async function getAuthStatus(): Promise<AuthStatusPayload> {
     getTokenHealthForCurrentUser(),
   ]);
   const hosting = getOAuthHostingState();
+  const authSetup = getAuthSetupState();
 
   return {
     mode: runtime.mode,
@@ -39,5 +41,6 @@ export async function getAuthStatus(): Promise<AuthStatusPayload> {
     callbackUrl: hosting.callbackUrl,
     tokenHealth,
     scopesSummary: tokenHealth?.scopes || [],
+    configWarnings: [...authSetup.configWarnings, ...hosting.warnings],
   };
 }

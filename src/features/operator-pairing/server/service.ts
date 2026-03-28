@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { shouldGateAction, createApprovalRequest } from "@/src/features/approvals/server/service";
 import type { ApprovalActionType } from "@/src/features/approvals/types";
 import { getAppBaseUrl } from "@/src/features/auth/server/config";
-import { getCurrentSession } from "@/src/features/auth/server/current-session";
+import { requireCurrentOwnerSession } from "@/src/features/auth/server/current-session";
 import { executeAction } from "@/src/features/execution/server/service";
 import { capabilityOrder, capabilityLabels } from "@/src/features/x-auth/capabilities";
 import { recordActionLog } from "@/src/features/logs/server/service";
@@ -57,7 +57,7 @@ function getPairingRequestTtlMinutes() {
   if (!Number.isFinite(value) || value <= 0) {
     return 15;
   }
-  return Math.round(value);
+  return Math.min(30, Math.max(5, Math.round(value)));
 }
 
 function getOperatorSessionTtlHours() {
@@ -65,7 +65,7 @@ function getOperatorSessionTtlHours() {
   if (!Number.isFinite(value) || value <= 0) {
     return 24;
   }
-  return Math.round(value);
+  return Math.min(72, Math.max(1, Math.round(value)));
 }
 
 function sha256(input: string) {
@@ -122,6 +122,43 @@ const capabilityByExecutionAction: Partial<Record<ExecutionActionType, XCapabili
 function normalizeCapabilityList(input: readonly string[] | undefined | null): XCapability[] {
   const requested = new Set(input || []);
   return capabilityOrder.filter((capability) => requested.has(capability));
+}
+
+function sanitizeFingerprintField(value: string | undefined, maxLength = 120) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, maxLength) : undefined;
+}
+
+function sanitizePairingRequestInput(input: CreatePairingRequestInput) {
+  const operatorInstanceId = input.operatorInstanceId.trim().slice(0, 80);
+  const operatorLabel = input.operatorLabel.trim().slice(0, 80);
+  const requestedCapabilities = normalizeCapabilityList(input.requestedCapabilities);
+  const requestedScopeSummary = sanitizeErrorMessage(
+    input.requestedScopeSummary || requestedCapabilities.join(", "),
+  ).slice(0, 180);
+
+  if (!operatorInstanceId || !operatorLabel) {
+    throw new Error("operatorInstanceId and operatorLabel are required.");
+  }
+
+  return {
+    operatorInstanceId,
+    operatorLabel,
+    requestedCapabilities,
+    requestedScopeSummary:
+      requestedScopeSummary || "No explicit capabilities requested.",
+    operatorFingerprint: {
+      host: sanitizeFingerprintField(input.operatorFingerprint.host),
+      instanceId: sanitizeFingerprintField(input.operatorFingerprint.instanceId),
+      runtime: sanitizeFingerprintField(input.operatorFingerprint.runtime),
+      ipHint: sanitizeFingerprintField(input.operatorFingerprint.ipHint, 64),
+      notes: sanitizeFingerprintField(input.operatorFingerprint.notes, 180),
+    },
+  };
 }
 
 function getDefaultApprovalRequiredCapabilities(grantedCapabilities: XCapability[]) {
@@ -346,10 +383,7 @@ async function sweepExpiredState() {
 }
 
 async function requireOwnerContext() {
-  const session = await getCurrentSession();
-  if (!session) {
-    throw new Error("Owner session is required.");
-  }
+  const session = await requireCurrentOwnerSession();
   return session.user;
 }
 
@@ -422,7 +456,7 @@ async function createOperatorSessionFromApproval(input: {
 export async function createPairingRequest(
   input: CreatePairingRequestInput,
 ): Promise<PairingCreationResponse> {
-  const requestedCapabilities = normalizeCapabilityList(input.requestedCapabilities);
+  const sanitizedInput = sanitizePairingRequestInput(input);
   const requestId = createId("pair");
   const createdAt = now();
   const expiresAt = minutesFromNow(getPairingRequestTtlMinutes());
@@ -439,12 +473,11 @@ export async function createPairingRequest(
     approved_at: null,
     rejected_at: null,
     revoked_at: null,
-    operator_instance_id: input.operatorInstanceId,
-    operator_label: input.operatorLabel.trim(),
-    operator_fingerprint: input.operatorFingerprint,
-    requested_capabilities: requestedCapabilities,
-    requested_scope_summary:
-      input.requestedScopeSummary || requestedCapabilities.join(", "),
+    operator_instance_id: sanitizedInput.operatorInstanceId,
+    operator_label: sanitizedInput.operatorLabel,
+    operator_fingerprint: sanitizedInput.operatorFingerprint,
+    requested_capabilities: sanitizedInput.requestedCapabilities,
+    requested_scope_summary: sanitizedInput.requestedScopeSummary,
     one_time_code_hash: sha256(normalizeCode(code)),
     one_time_code_display: maskCode(code),
     approval_link_token_hash: sha256(approvalLinkToken),
@@ -457,23 +490,23 @@ export async function createPairingRequest(
 
   await upsertPairingRequest(request);
   await recordActionLog({
-    actor: input.operatorInstanceId,
+    actor: sanitizedInput.operatorInstanceId,
     actorType: "operator",
     actionType: "pairing.requested",
     targetType: "pairing_request",
     targetId: request.id,
-    payloadSummary: `Operator ${input.operatorLabel} requested pairing.`,
+    payloadSummary: `Operator ${sanitizedInput.operatorLabel} requested pairing.`,
     resultStatus: "queued",
     resultExcerpt: `Pairing request created with ${getPairingRequestTtlMinutes()} minute TTL.`,
     authMethod: "system",
   });
   await recordActionLog({
-    actor: input.operatorInstanceId,
+    actor: sanitizedInput.operatorInstanceId,
     actorType: "operator",
     actionType: "pairing.credentials_issued",
     targetType: "pairing_request",
     targetId: request.id,
-    payloadSummary: `Issued one-time approval link and code for ${input.operatorLabel}.`,
+    payloadSummary: `Issued one-time approval link and code for ${sanitizedInput.operatorLabel}.`,
     resultStatus: "queued",
     resultExcerpt: "Approval link and pairing code are active until approval, rejection, revocation, or expiry.",
     authMethod: "system",

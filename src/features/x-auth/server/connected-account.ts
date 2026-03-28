@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getCurrentSession } from "@/src/features/auth/server/current-session";
+import { requireCurrentOwnerSession } from "@/src/features/auth/server/current-session";
 import {
   deleteConnectedXAccount,
   getConnectedXAccount,
@@ -86,7 +86,7 @@ function summarizeAccount(record: StoredConnectedXAccount): ConnectedXAccountSum
 }
 
 export async function getCurrentAppUserId() {
-  const session = await getCurrentSession();
+  const session = await requireCurrentOwnerSession().catch(() => null);
   return session?.user.id || null;
 }
 
@@ -117,8 +117,6 @@ export async function getStoredOAuth2TokenSetForCurrentUser() {
   return {
     accessToken: bundle.accessToken,
     refreshToken: bundle.refreshToken,
-    clientId: getXOAuthClientConfig().clientId || undefined,
-    clientSecret: getXOAuthClientConfig().clientSecret || undefined,
     expiresAt: bundle.expiresAt,
     scopes: bundle.scopes,
   };
@@ -180,7 +178,8 @@ export async function updateConnectedAccountValidation(input: {
 }
 
 export async function disconnectCurrentXAccount() {
-  const userId = await getCurrentAppUserId();
+  const session = await requireCurrentOwnerSession().catch(() => null);
+  const userId = session?.user.id || null;
   if (!userId) {
     return null;
   }

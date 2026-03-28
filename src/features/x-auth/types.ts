@@ -137,4 +137,5 @@ export interface AuthStatusPayload {
   callbackUrl: string | null;
   tokenHealth: XTokenHealthSummary | null;
   scopesSummary: string[];
+  configWarnings: string[];
 }

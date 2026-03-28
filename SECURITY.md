@@ -1,84 +1,132 @@
 # Security Policy
 
-## Public Repo Expectations
+## Scope
 
-This repository is intended to be public. Treat every committed file, screenshot, mock dataset, and code comment as publicly visible.
+This repository is public product code. Assume every committed file, fixture, screenshot, and code comment is visible to the public.
 
-The repository must never include:
-
-- real API keys, app secrets, bearer tokens, refresh tokens, cookies, or session exports
-- real account IDs, personal handles, private watchlists, or strategy notes
-- raw production logs, browser storage exports, or approval payloads containing secrets
-- hidden prompts or undocumented private operator instructions
+The app is designed so that:
+- owners authenticate to the app first
+- X tokens remain server-side
+- remote operators receive app-level session leases, not raw X credentials
+- risky actions remain scoped, logged, and revocable
 
 ## Secret Handling
 
-All live credentials must come from local environment variables or other local-only ignored storage.
+Never commit or expose:
+- `APP_SESSION_SECRET`
+- `X_TOKEN_ENCRYPTION_KEY`
+- `X_CLIENT_SECRET`
+- access tokens
+- refresh tokens
+- bearer tokens
+- cookies
+- browser auth exports
 
-Required rules:
+Rules:
+- secrets must come from local env or deployment secret storage only
+- secrets must never be rendered into client HTML or JSON responses
+- logs must never include raw authorization headers or token material
+- any new error or log path must pass through sanitization
 
-- keep secrets server-side only
-- do not render raw credentials to the client
-- do not log raw headers, cookies, tokens, or request bodies containing secrets
-- prefer demo mode unless you are intentionally testing local live auth
-- use `.env.local` or another ignored local file for real values
+## Owner and Operator Permissions
 
-This repository ships `.env.example` with placeholders only. Replace placeholders locally and never commit real values back into the repo.
+The permission model is intentionally asymmetric.
 
-## Local Runtime Data
+Owner:
+- signs into the app with the owner account
+- connects or disconnects the X account
+- approves or rejects operator pairing requests
+- grants or edits operator capabilities
+- revokes or downgrades operator sessions
+- changes app-level settings
 
-The app stores local runtime artifacts for demo and operator workflows. These files are expected to remain local-only and ignored by Git.
+Operator:
+- requests pairing
+- receives a short-lived approval link or one-time backup code
+- gets an app-level lease only after explicit approval
+- can execute only the capabilities granted to the active operator session
 
-Examples:
+Operators do not receive raw X credentials.
 
+## Trusted Operator Mode
+
+Trusted Operator Mode is not a hidden global bypass.
+
+It must always remain:
+- per-session
+- explicitly granted by the owner
+- capability-scoped
+- revocable
+- audited
+- enforced server-side
+
+If a future change weakens any of those properties, treat it as a security regression.
+
+## Token Safety Expectations
+
+Hosted X OAuth tokens are expected to be:
+- stored server-side only
+- encrypted at rest
+- absent from client responses
+- absent from logs
+- invalidated locally when the connected account is disconnected
+
+If encryption is not configured, live OAuth connect should not be considered production-ready.
+
+## Runtime and Local Data
+
+The app currently stores runtime state locally in ignored files such as:
 - `data/`
 - `logs/`
 - `uploads/`
 - `tmp/`
 - `playwright/.auth/`
-- local SQLite or `.db` files
 
-Do not commit runtime snapshots from a real account, even if they appear sanitized.
+Those artifacts may contain sensitive operational data even when they do not contain raw tokens. Keep them local-only or replace them with a secured production data store.
 
 ## What Not To Commit
 
-Never commit:
+Do not commit:
+- `.env`, `.env.local`, or real deployment env files
+- real screenshots from production accounts
+- local runtime DB files or JSON snapshots from real use
+- copied API responses from a real connected X account
+- browser storage exports, cookies, or Playwright auth state
+- personal watchlists, target accounts, or private operator notes
 
-- `.env`, `.env.local`, or any real env file
-- OAuth tokens, bearer tokens, client secrets, cookie jars, or browser auth state
-- real exports from X or browser automation tools
-- screenshots containing private account data
-- uploaded assets tied to a real operator account
-- raw API responses that may contain identifiers, scopes, or private metadata
+## Revocation Expectations
 
-## If Keys Are Compromised
+Revocation must take effect immediately for:
+- active operator sessions
+- pairing requests that have not been consumed
+- approvals or grants that should no longer be trusted
 
-If you believe any credential has been exposed:
+If you discover a code path where a revoked or expired operator session can still act, treat it as a security bug.
 
-1. Revoke or rotate the compromised key or token in the X developer/account console immediately.
-2. Invalidate any related refresh tokens, sessions, cookies, or local browser auth state.
-3. Remove the exposed value from local files, logs, screenshots, and shell history where possible.
-4. Search the repository history and current working tree for the leaked value or nearby excerpts.
-5. If the value was ever committed or pushed, treat it as fully compromised and rotate before doing anything else.
-6. Replace the local credential with a newly issued value and re-run capability diagnostics.
+## If Credentials Are Compromised
+
+If any owner credential, session secret, token, or X app credential may be exposed:
+
+1. Revoke or rotate the compromised X credential immediately.
+2. Rotate `APP_SESSION_SECRET` if app sessions may be affected.
+3. Rotate `X_TOKEN_ENCRYPTION_KEY` and reconnect accounts if encrypted token material may be compromised.
+4. Revoke all active operator sessions from the app.
+5. Remove the secret from local files, logs, screenshots, shell history, and any copied artifacts.
+6. Search the git history and working tree for leaked values or recognizable excerpts.
+7. Re-run capability diagnostics and operator pairing only after rotation is complete.
 
 ## Reporting
 
-If you discover a vulnerability or accidental secret exposure, report it privately to the repository maintainer before opening a public issue.
-
-Include:
-
-- what you found
-- how it can be reproduced
-- likely impact
-- whether sensitive data may already have been exposed
+If you find a vulnerability or accidental data exposure:
+- report it privately to the maintainer first
+- include impact, reproduction steps, and what data may be exposed
+- avoid posting secrets or sensitive payloads in a public issue
 
 ## Contributor Checklist
 
-Before opening a PR or publishing the repo:
-
-- confirm the app still works in demo mode with no secrets present
-- confirm all seeded data is generic and non-personal
-- confirm `.gitignore` covers local runtime artifacts
-- confirm any new logs or approvals are sanitized
-- confirm screenshots and docs do not reveal real account details
+Before pushing code or opening a PR:
+- verify demo mode still works with no secrets configured
+- verify sensitive routes require owner auth or a valid operator lease
+- verify new logs and errors are sanitized
+- verify no new env examples contain real values
+- verify no screenshots or docs reveal real account data

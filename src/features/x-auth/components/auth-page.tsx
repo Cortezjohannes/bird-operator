@@ -87,6 +87,17 @@ export function AuthPage({
           </section>
         ) : null}
 
+        {authStatus.configWarnings.length > 0 ? (
+          <section className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-4 py-3 text-sm text-orange-100">
+            <p className="font-medium">Deployment warnings</p>
+            <ul className="mt-2 space-y-2">
+              {authStatus.configWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <div className="grid gap-4">
             <div className={panelClassName()}>

@@ -10,6 +10,7 @@ export async function POST() {
 
   await recordActionLog({
     actor: "owner-user",
+    actorType: "owner",
     actionType: "x.disconnect",
     targetType: "user",
     targetId: disconnected?.xUserId || null,

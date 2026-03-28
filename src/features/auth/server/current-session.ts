@@ -77,3 +77,18 @@ export async function clearAppSession() {
     maxAge: 0,
   });
 }
+
+export function isOwnerSession(
+  session: Awaited<ReturnType<typeof getCurrentSession>> | null,
+) {
+  return Boolean(session && session.user.role === "owner");
+}
+
+export async function requireCurrentOwnerSession() {
+  const session = await getCurrentSession();
+  if (!session || session.user.role !== "owner") {
+    throw new Error("Owner session is required.");
+  }
+
+  return session;
+}

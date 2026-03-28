@@ -4,10 +4,28 @@ function hasValue(value: string | undefined) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function parseUrl(value: string) {
+  if (!hasValue(value)) {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 export const APP_SESSION_COOKIE_NAME = "x_operator_session";
 
 export function getAppBaseUrl() {
-  return process.env.APP_BASE_URL || "";
+  const parsed = parseUrl(process.env.APP_BASE_URL || "");
+  return parsed ? parsed.toString().replace(/\/$/, "") : "";
+}
+
+export function getAppBaseOrigin() {
+  const parsed = parseUrl(getAppBaseUrl());
+  return parsed ? parsed.origin : "";
 }
 
 export function getAppSessionSecret() {
@@ -37,8 +55,44 @@ export function isSecureCookieEnvironment() {
   return process.env.NODE_ENV === "production";
 }
 
+export function getTrustedHosts() {
+  const fromEnv = (process.env.APP_TRUSTED_HOSTS || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const baseUrl = parseUrl(getAppBaseUrl());
+  const hosts = new Set<string>(fromEnv);
+
+  if (baseUrl?.host) {
+    hosts.add(baseUrl.host.toLowerCase());
+  }
+
+  return Array.from(hosts);
+}
+
+export function isTrustedOrigin(origin: string | null | undefined) {
+  if (!origin) {
+    return false;
+  }
+
+  const parsed = parseUrl(origin);
+  if (!parsed) {
+    return false;
+  }
+
+  const trustedHosts = getTrustedHosts();
+  if (trustedHosts.length === 0) {
+    return false;
+  }
+
+  return trustedHosts.includes(parsed.host.toLowerCase());
+}
+
 export function getAuthSetupState(): AppAuthSetupState {
   const missingFields: string[] = [];
+  const configWarnings: string[] = [];
+  const baseUrl = parseUrl(process.env.APP_BASE_URL || "");
+
   if (!getOwnerEmail()) {
     missingFields.push("APP_OWNER_EMAIL");
   }
@@ -49,10 +103,29 @@ export function getAuthSetupState(): AppAuthSetupState {
     missingFields.push("APP_SESSION_SECRET");
   }
 
+  if (!baseUrl) {
+    configWarnings.push("APP_BASE_URL is missing or invalid. Hosted OAuth and production redirects need an absolute public URL.");
+  } else {
+    if (isSecureCookieEnvironment() && baseUrl.protocol !== "https:") {
+      configWarnings.push("APP_BASE_URL should use https in production.");
+    }
+    if (isSecureCookieEnvironment() && /localhost|127\.0\.0\.1/.test(baseUrl.hostname)) {
+      configWarnings.push("APP_BASE_URL still points at localhost. Update it before public deployment.");
+    }
+  }
+
+  if (isSecureCookieEnvironment() && getTrustedHosts().length === 0) {
+    configWarnings.push("APP_TRUSTED_HOSTS is not set. Same-origin enforcement will fall back to APP_BASE_URL only.");
+  }
+
+  const configured = missingFields.length === 0;
+  const productionReady = configured && configWarnings.length === 0;
+
   return {
-    configured: missingFields.length === 0,
-    baseUrlConfigured: hasValue(getAppBaseUrl()),
+    configured,
+    baseUrlConfigured: Boolean(baseUrl),
     missingFields,
-    ownerEmail: getOwnerEmail() || null,
+    configWarnings,
+    productionReady,
   };
 }

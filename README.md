@@ -1,187 +1,180 @@
 # X Operator Console
 
-X Operator Console is a dark, dense operator workspace for running an X/Twitter account deliberately. It is built for a human operator and an AI assistant to work together on posting, triage, approvals, profile surface updates, and diagnostics without exposing secrets or drifting into account-security settings.
+X Operator Console is a public-safe operator workspace for running an X account with explicit human control and revocable remote-operator access.
 
-The repo is public-safe by design:
+It is built for:
+- an owner signed into the app in a browser
+- a connected X account managed through hosted OAuth
+- a paired remote operator that acts through the app backend, never with raw X credentials
+
+The product is intentionally dense, operational, and audit-friendly. It is not a consumer scheduler or a black-box automation toy.
+
+## Core Model
+
+There are three distinct actors:
+- the human owner authenticated to the app
+- the connected X account
+- the paired operator session
+
+Operator access works like this:
+1. An operator instance requests pairing.
+2. The app issues a short-lived approval link and a one-time backup code.
+3. The owner reviews the operator fingerprint, requested capabilities, and expiry.
+4. If approved, the app creates an app-level operator session lease.
+5. The operator acts through app-controlled backend routes, subject to grants, approvals, logs, and revocation.
+
+Raw X tokens are never handed to the operator.
+
+## What the App Supports
+
+- owner authentication with secure HTTP-only sessions
+- hosted X OAuth connect with encrypted token storage
+- truthful capability diagnostics against live endpoints
+- feed and mentions review
+- drafts, queue, replies, quotes, and thread composition
+- approval workflows for risky actions
+- secure operator pairing with approval links, backup codes, revocation, and expiry
+- Trusted Operator Mode with per-session capability grants
+- profile surface editing for public profile fields only
+- structured sanitized logs and basic analytics
+- demo mode by default and live mode only when configured
+
+## Safety Defaults
 
 - demo mode is the default
-- the app is protected behind owner authentication
-- live mode only activates from local env vars
-- secrets stay server-side
-- seeded data is generic
-- runtime data is ignored by Git
-
-## What It Is
-
-This is not a consumer scheduler or a social-media SaaS clone.
-
-It is an operator console with a mission-control feel:
-
-- dense feed and mentions review
-- draft, queue, and approval workflows
-- profile surface management
-- auth and capability diagnostics
-- action logs and basic analytics
-- browser-fallback-ready execution architecture for future Playwright integration
-
-## Features
-
-- Demo-first Next.js app with dark operator UI
-- Owner authentication with secure HTTP-only session cookies
-- Hosted X OAuth connect flow with server-side encrypted token persistence
-- Secure operator pairing requests with approval links, backup codes, session leases, and revocation
-- Server-only auth abstraction for OAuth 1.0a, OAuth 2.0 user tokens, bearer token, and client credentials
-- Capability diagnostics with real probe results and sanitized errors
-- Internal X client abstraction for reads, posting, engagement actions, profile mutations, and capability checks
-- Feed and mentions pages with triage labels, quick actions, and watchlist hooks
-- Compose and queue flows for posts, replies, quotes, and threads
-- Approval policies with presets, overrides, and review queue
-- Profile surface editor with revision history and approval-aware apply flow
-- Structured sanitized logs and starter analytics
-- Browser fallback settings and execution architecture placeholder
+- app login is required before the dashboard or protected APIs can be used
+- new pairings default to Approval Mode, not Trusted Operator Mode
+- default grants are minimal and safe
+- Trusted Operator Mode must be explicitly chosen by the owner
+- revoke controls stay visible on active operator sessions
+- pairing links and codes are short-lived and one-time use
+- connected X tokens stay server-side and encrypted at rest
 
 ## Screenshots
 
-Static placeholders are included so the repo reads cleanly on GitHub before real demo captures are added.
+Placeholder assets are included so the repo reads cleanly on GitHub before sanitized demo captures are added.
 
-- Console overview placeholder: [public/screenshots/console-overview.svg](./public/screenshots/console-overview.svg)
-- Approval lane placeholder: [public/screenshots/approval-lane.svg](./public/screenshots/approval-lane.svg)
-- GIF placeholder note: replace these with sanitized product captures or short recordings from demo mode only
+- [Console overview placeholder](./public/screenshots/console-overview.svg)
+- [Approval lane placeholder](./public/screenshots/approval-lane.svg)
 
-## Quickstart
+## Local Development
 
 1. Install dependencies.
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. Copy the environment template for local use.
+2. Copy the environment template.
 
-   ```bash
-   cp .env.example .env.local
-   ```
+```bash
+cp .env.example .env.local
+```
 
 3. Configure app authentication in `.env.local`.
 
-   Required:
+Required:
+- `APP_SESSION_SECRET`
+- `APP_OWNER_EMAIL`
+- `APP_OWNER_PASSWORD_HASH`
 
-   - `APP_SESSION_SECRET`
-   - `APP_OWNER_EMAIL`
-   - `APP_OWNER_PASSWORD_HASH`
+Recommended:
+- `APP_BASE_URL`
 
-   Optional but recommended:
+4. Start the app.
 
-   - `APP_BASE_URL`
-   - `APP_SESSION_TTL_HOURS`
+```bash
+npm run dev
+```
 
-4. If you want hosted live X connectivity, also configure:
+5. Open `http://localhost:3000` and sign in as the owner.
 
-   - `X_CLIENT_ID`
-   - `X_CLIENT_SECRET`
-   - `X_TOKEN_ENCRYPTION_KEY`
-   - `X_OPERATOR_CONSOLE_MODE=live`
+## Live X OAuth Setup
 
-5. Optional operator pairing TTL controls:
+To use live X connectivity instead of demo mode, set:
 
-   - `OPERATOR_PAIRING_REQUEST_TTL_MINUTES`
-   - `OPERATOR_SESSION_TTL_HOURS`
+- `X_OPERATOR_CONSOLE_MODE=live`
+- `APP_BASE_URL`
+- `X_CLIENT_ID`
+- `X_CLIENT_SECRET`
+- `X_TOKEN_ENCRYPTION_KEY`
 
-6. Start the app.
+Then:
+1. Sign in as the owner.
+2. Open `/settings/auth`.
+3. Click `Connect X`.
+4. Complete the hosted OAuth flow.
+5. Retest capabilities.
 
-   ```bash
-   npm run dev
-   ```
+Capabilities are based on actual tests, not on token presence alone.
 
-7. Open `http://localhost:3000` and sign in as the owner user.
+## Trusted Operator Mode
 
-8. Optional verification:
+Trusted Operator Mode is explicit, scoped, and revocable.
 
-   ```bash
-   npm run lint
-   npm run build
-   ```
+When approving or editing an operator session, the owner chooses:
+- `Approval Mode`
+- `Trusted Operator Mode`
+- `Custom Mode`
 
-## Demo Mode
+Each session has its own granted capabilities. Trusted sessions can execute granted actions without per-action approval, but:
+- execution still goes through the app backend
+- owner-only actions remain blocked
+- actions are fully logged
+- the session can be downgraded or revoked immediately
 
-Demo mode is the default and is intended to look polished in a public repo.
+## Production Deployment Basics
 
-What you get in demo mode:
+This app is designed for VPS-style deployment behind HTTPS.
 
-- seeded feed and mentions activity
-- realistic queue, approval, profile, log, and analytics states
-- working local draft and triage persistence
-- no real outbound account mutations
-- no X credentials required
-- app login still required
+Recommended production shape:
+- `APP_BASE_URL` set to the public HTTPS origin
+- reverse proxy terminates TLS and forwards the canonical host
+- `APP_TRUSTED_HOSTS` set to the allowed public hostnames
+- runtime `data/` persisted on disk or replaced with a real database
+- environment variables injected server-side only
 
-The app stays in demo mode when live configuration is missing or incomplete.
+Build and run:
 
-## Live Mode
+```bash
+npm run build
+npm run start
+```
 
-Live mode is opt-in and local-only.
+Production checklist:
+- set a long random `APP_SESSION_SECRET`
+- set a long random `X_TOKEN_ENCRYPTION_KEY`
+- confirm `APP_BASE_URL` is HTTPS and not localhost
+- confirm `APP_TRUSTED_HOSTS` matches the deployed hostname
+- keep `data/`, `logs/`, `uploads/`, and `tmp/` out of Git and backed by persistent storage if needed
+- verify `/settings/auth` shows no deployment warnings
+- verify revocation and capability retest flows before trusting an operator session
 
-Requirements:
+More deployment notes: [docs/deployment.md](./docs/deployment.md)
 
-- set `X_OPERATOR_CONSOLE_MODE=live`
-- configure hosted OAuth with `X_CLIENT_ID`, `X_CLIENT_SECRET`, `APP_BASE_URL`, and `X_TOKEN_ENCRYPTION_KEY`
-- connect an X account from the diagnostics page
+## Storage Expectations
 
-Notes:
+The current repo uses local JSON-backed runtime storage in `data/operator-store.json`.
 
-- capabilities come from actual server-side tests, not token presence alone
-- connected-account tokens are stored server-side and encrypted at rest when hosted OAuth is enabled
-- raw secrets never go to the client
-- if env vars are incomplete, the runtime falls back safely to demo mode
-- browser fallback is only an architectural placeholder in the current repo
+That is good enough for demo mode and careful single-instance deployment, but future production work should move runtime state to a real database for:
+- better durability
+- safer concurrent writes
+- easier backups
+- multi-user growth
 
-## Internal Architecture
+## Important Limits
 
-Key slices:
+- account-security settings are intentionally out of scope
+- browser fallback is architecture-only right now, not a shipped automation path
+- media upload is still placeholder-level
+- the owner auth model is currently single-owner-first
 
-- `src/features/auth/`: app auth, secure sessions, owner login, and route protection
-- `src/features/x-auth/`: auth detection and capability diagnostics
-- `src/features/x-client/`: internal X API abstraction and sanitized error handling
-- `src/features/execution/`: normalized execution layer with future fallback hooks
-- `src/features/drafts/`: compose, queue, and post flows
-- `src/features/approvals/`: policy gating and approval records
-- `src/features/operator-pairing/`: pairing requests, approvals, session leases, and revocation
-- `src/features/profile/`: profile surface revisions and apply logic
-- `src/features/logs/`: public-safe action logs
-- `src/features/analytics/`: starter analytics views
-- `src/features/operator-store/`: local ignored runtime persistence
-
-## Public Repo Safety
+## Repo Safety
 
 Never commit:
-
 - real `.env` files
-- tokens, refresh tokens, cookies, or browser auth state
-- runtime `data/`, `logs/`, `uploads/`, or `tmp/` contents from real use
-- personal handles, real watchlists, or private strategy notes
-- screenshots containing real account data
+- tokens, refresh tokens, cookies, or browser auth exports
+- real account data in screenshots or logs
+- runtime `data/`, `logs/`, `uploads/`, or `tmp/` contents from a real deployment
 
-See [SECURITY.md](./SECURITY.md) for the full policy.
-
-## Roadmap
-
-- richer watchlist management and targeting tools
-- dedicated audit and execution timeline views
-- scheduler/worker support for scheduled queue items
-- media upload pipeline for profile and post attachments
-- Playwright-backed browser fallback executor
-- broader analytics and follower snapshot automation
-
-## Current Limitations
-
-- demo mode is intentionally stronger than live mode in a few areas because the live executor remains conservative
-- browser fallback does not perform real automation yet
-- local persistence is JSON-file based rather than a full database
-- media upload is placeholder-only
-
-## Development Notes
-
-- build incrementally and keep demo mode working
-- keep all secrets and live config local
-- prefer generic seeded data over realistic personal account data
-- treat any new logs, screenshots, and fixtures as public artifacts
+See [SECURITY.md](./SECURITY.md) for operating assumptions and incident response guidance.

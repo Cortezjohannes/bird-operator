@@ -11,7 +11,7 @@ export function LoginScreen({
   setupState: AppAuthSetupState;
 }>) {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState(setupState.ownerEmail || "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -76,11 +76,17 @@ export function LoginScreen({
               <h2 className="mt-2 text-2xl font-semibold text-white">Sign in to manage the console</h2>
             </div>
             <span className={`rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] ${
-              setupState.configured
+              setupState.productionReady
+                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                : setupState.configured
                 ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
                 : "border-amber-400/20 bg-amber-400/10 text-amber-200"
             }`}>
-              {setupState.configured ? "configured" : "setup required"}
+              {setupState.productionReady
+                ? "ready"
+                : setupState.configured
+                  ? "review config"
+                  : "setup required"}
             </span>
           </div>
 
@@ -96,6 +102,17 @@ export function LoginScreen({
               <p className="mt-3 text-amber-50/90">
                 Password hashes use the format <code className="rounded bg-black/20 px-1.5 py-0.5">scrypt$SALT$HASH</code>.
               </p>
+            </div>
+          ) : null}
+
+          {setupState.configWarnings.length > 0 ? (
+            <div className="mt-4 rounded-2xl border border-orange-400/20 bg-orange-400/10 p-4 text-sm text-orange-100">
+              <p className="font-medium">Deployment warnings</p>
+              <ul className="mt-2 space-y-2">
+                {setupState.configWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
 

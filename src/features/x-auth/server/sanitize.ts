@@ -33,6 +33,10 @@ export function sanitizeErrorMessage(input: unknown) {
 
   return message
     .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/gi, "$1[redacted]")
+    .replace(/(Basic\s+)[A-Za-z0-9+/=]+/gi, "$1[redacted]")
+    .replace(/(oauth_(?:token|signature|consumer_key)=)[^&,\\s]+/gi, "$1[redacted]")
+    .replace(/(code_verifier=)[^&\\s]+/gi, "$1[redacted]")
+    .replace(/(refresh_token=)[^&\\s]+/gi, "$1[redacted]")
     .replace(/[A-Za-z0-9_-]{24,}\.[A-Za-z0-9._-]{10,}/g, "[redacted]")
     .replace(/[A-Za-z0-9]{32,}/g, "[redacted]")
     .slice(0, 220);

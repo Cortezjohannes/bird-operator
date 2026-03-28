@@ -35,6 +35,20 @@ function base64UrlToBytes(value: string) {
   return bytes;
 }
 
+async function verifySignatureSegment(
+  segment: string,
+  signature: string,
+  secret: string,
+) {
+  const key = await importSigningKey(secret);
+  return globalThis.crypto.subtle.verify(
+    "HMAC",
+    key,
+    base64UrlToBytes(signature),
+    encoder.encode(segment),
+  );
+}
+
 async function importSigningKey(secret: string) {
   return globalThis.crypto.subtle.importKey(
     "raw",
@@ -75,8 +89,12 @@ export async function verifySessionToken(
     return null;
   }
 
-  const expected = await signPayloadSegment(payloadSegment, secret);
-  if (expected !== signatureSegment) {
+  const valid = await verifySignatureSegment(
+    payloadSegment,
+    signatureSegment,
+    secret,
+  );
+  if (!valid) {
     return null;
   }
 

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isTrustedOrigin } from "@/src/features/auth/server/config";
 import { authenticateOwnerLogin } from "@/src/features/auth/server/login";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== request.nextUrl.origin && !isTrustedOrigin(origin)) {
+    return NextResponse.json(
+      { error: { message: "Blocked by same-origin policy." } },
+      { status: 403 },
+    );
+  }
+
   const body = (await request.json()) as { email?: string; password?: string };
 
   if (!body.email || !body.password) {

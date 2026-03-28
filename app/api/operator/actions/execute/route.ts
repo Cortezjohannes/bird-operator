@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { consumeOperatorActionAttempt } from "@/src/features/operator-pairing/server/public-rate-limit";
 import { executeOperatorSessionAction } from "@/src/features/operator-pairing/server/service";
 import type { ExecutionActionType, ExecutionPayloadMap } from "@/src/features/execution/types";
 
@@ -20,6 +21,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: { message: "Operator lease token is required." } },
       { status: 401 },
+    );
+  }
+
+  const limit = consumeOperatorActionAttempt(leaseToken);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: { message: `Too many operator actions. Try again in ${limit.retryAfterSeconds}s.` } },
+      { status: 429 },
     );
   }
 

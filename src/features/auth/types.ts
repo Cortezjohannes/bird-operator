@@ -15,5 +15,6 @@ export interface AppAuthSetupState {
   configured: boolean;
   baseUrlConfigured: boolean;
   missingFields: string[];
-  ownerEmail: string | null;
+  configWarnings: string[];
+  productionReady: boolean;
 }
