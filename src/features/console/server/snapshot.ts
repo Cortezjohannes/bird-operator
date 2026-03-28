@@ -66,7 +66,7 @@ function buildCapabilityDiagnostics(input: {
   authWarnings: string[];
 }): CapabilityDiagnostic[] {
   const lookup = new Map(input.results.map((result) => [result.capability, result]));
-  const readCapabilities = ["read_timeline", "read_mentions"] as const;
+  const readCapabilities = ["read_user", "read_timeline", "read_mentions"] as const;
   const writeCapabilities = [
     "post_tweet",
     "reply_tweet",
@@ -82,7 +82,7 @@ function buildCapabilityDiagnostics(input: {
   const groups = [
     {
       key: "read",
-      label: "Read timeline and mentions",
+      label: "Read account, timeline, and mentions",
       capabilities: readCapabilities,
     },
     {

@@ -510,7 +510,7 @@ function createLiveClient(scope?: XClientScope): XClient {
     },
     async getUser(handle) {
       return executeScopedLiveRequest<XUserSummary>({
-        capability: "analytics_read",
+        capability: "read_user",
         operation: "getUser",
         endpointLabel: "Get user by handle",
         targetType: "user",
@@ -519,7 +519,6 @@ function createLiveClient(scope?: XClientScope): XClient {
         pathResolver: () => `/2/users/by/username/${handle.replace(/^@/, "")}`,
         query: { "user.fields": "description,public_metrics" },
         requireUserContext: false,
-        preferredAuthStrategy: "bearer",
         mapData: (body) => {
           const user = extractData<Record<string, unknown>>(body, {});
           const metrics =
@@ -842,6 +841,11 @@ export async function runCapabilityTests(options?: {
   const results = await Promise.all(
     capabilityOrder.map(async (capability) => {
       switch (capability) {
+        case "read_user":
+          return createCapabilityResult(
+            capability,
+            await client.getUser("TwitterDev"),
+          );
         case "read_timeline":
           return createCapabilityResult(capability, await client.getTimeline());
         case "read_mentions":

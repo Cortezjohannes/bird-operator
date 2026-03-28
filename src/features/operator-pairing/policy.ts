@@ -24,6 +24,7 @@ export const operatorSessionModeDescriptions: Record<OperatorSessionMode, string
 };
 
 export const safeDefaultOperatorCapabilities: XCapability[] = [
+  "read_user",
   "read_timeline",
   "read_mentions",
   "analytics_read",
