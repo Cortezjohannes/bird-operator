@@ -26,6 +26,21 @@ function formatModeLabel(mode: "live" | "unavailable") {
   return mode === "live" ? "live" : "unavailable";
 }
 
+function formatConnectionState(state: AuthStatusPayload["connectionState"]) {
+  switch (state) {
+    case "not_connected":
+      return "No account connected";
+    case "linked_token_missing":
+      return "Account linked, token missing";
+    case "token_expired":
+      return "Token expired";
+    case "scopes_insufficient":
+      return "Scopes insufficient";
+    case "token_healthy":
+      return "Token healthy";
+  }
+}
+
 export function AuthPage({
   authStatus,
   capabilityResults,
@@ -115,6 +130,14 @@ export function AuthPage({
                   </dt>
                   <dd className="mt-2 text-sm font-medium text-slate-100">
                     {formatModeLabel(authStatus.mode)}
+                  </dd>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                    Connection state
+                  </dt>
+                  <dd className="mt-2 text-sm font-medium text-slate-100">
+                    {formatConnectionState(authStatus.connectionState)}
                   </dd>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-panel-strong/85 px-4 py-3">
@@ -231,7 +254,9 @@ export function AuthPage({
                 </div>
               ) : (
                 <div className="mt-4 rounded-2xl border border-white/8 bg-panel-muted px-4 py-4 text-sm leading-7 text-slate-300">
-                  No X account is connected for this app user yet. Hosted OAuth must be configured and completed before live capability probes can run against a real account.
+                  {authStatus.connectionState === "linked_token_missing"
+                    ? "The X account record exists, but the OAuth2 connected-user token cannot be loaded. Reconnect X to restore live actions."
+                    : "No X account is connected for this app user yet. Hosted OAuth must be configured and completed before live capability probes can run against a real account."}
                 </div>
               )}
             </div>

@@ -115,6 +115,13 @@ export interface ConnectedXAccountSummary {
   tokenStatus: XTokenHealthSummary;
 }
 
+export type XConnectionState =
+  | "not_connected"
+  | "linked_token_missing"
+  | "token_expired"
+  | "token_healthy"
+  | "scopes_insufficient";
+
 export interface CapabilityTestResult {
   capability: XCapability;
   supported: boolean;
@@ -129,6 +136,7 @@ export interface AuthStatusPayload {
   requestedMode: "unavailable" | "live";
   isLiveReady: boolean;
   hasPartialLiveConfig: boolean;
+  connectionState: XConnectionState;
   detectedAuthMethods: DetectedAuthMethod[];
   liveProbeSummary: string;
   connectedAccount: ConnectedXAccountSummary | null;

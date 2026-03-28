@@ -24,6 +24,7 @@ import type {
   StoredConnectedXAccount,
   StoredOAuth2TokenBundle,
   XAuthMethod,
+  XConnectionState,
   XTokenHealthSummary,
 } from "@/src/features/x-auth/types";
 
@@ -73,6 +74,7 @@ function computeTokenStatus(input: {
 }
 
 function summarizeAccount(record: StoredConnectedXAccount): ConnectedXAccountSummary {
+  const tokenStatus = resolveStoredTokenHealth(record);
   return {
     appUserId: record.appUserId,
     xUserId: record.xUserId,
@@ -81,7 +83,28 @@ function summarizeAccount(record: StoredConnectedXAccount): ConnectedXAccountSum
     connectedAt: record.connectedAt,
     lastValidatedAt: record.lastValidatedAt,
     authMethodsAvailable: record.authMethodsAvailable,
-    tokenStatus: record.tokenStatus,
+    tokenStatus,
+  };
+}
+
+function resolveStoredTokenHealth(record: StoredConnectedXAccount): XTokenHealthSummary {
+  const decrypted = decryptOAuth2TokenBundle(record.tokenEnvelope);
+  if (decrypted) {
+    return computeTokenStatus({
+      bundle: decrypted,
+      lastValidatedAt: record.lastValidatedAt,
+    });
+  }
+
+  return {
+    ...record.tokenStatus,
+    status: record.tokenStatus.exists ? "error" : "missing",
+    exists: false,
+    hasRefreshToken: false,
+    expiresAt: null,
+    scopes: [],
+    lastValidatedAt: record.lastValidatedAt || null,
+    encryptionEnabled: isTokenEncryptionConfigured(),
   };
 }
 
@@ -299,7 +322,32 @@ export async function getDetectedAuthMethodsForCurrentUser(): Promise<DetectedAu
 
 export async function getTokenHealthForCurrentUser() {
   const account = await getCurrentConnectedXAccount();
-  return account?.tokenStatus || null;
+  return account ? resolveStoredTokenHealth(account) : null;
+}
+
+export function getConnectionState(input: {
+  account: ConnectedXAccountSummary | null;
+  tokenHealth: XTokenHealthSummary | null;
+}) : XConnectionState {
+  if (!input.account) {
+    return "not_connected";
+  }
+
+  if (!input.tokenHealth?.exists || input.tokenHealth.status === "missing" || input.tokenHealth.status === "error") {
+    return "linked_token_missing";
+  }
+
+  if (input.tokenHealth.status === "expired") {
+    return "token_expired";
+  }
+
+  const requiredScopes = ["tweet.read", "users.read"];
+  const hasBaselineScopes = requiredScopes.every((scope) => input.tokenHealth?.scopes.includes(scope));
+  if (!hasBaselineScopes) {
+    return "scopes_insufficient";
+  }
+
+  return "token_healthy";
 }
 
 export function createMissingConnectionMessage(error?: unknown) {

@@ -315,11 +315,15 @@ async function chooseAuthStrategy(
   return "none";
 }
 
-async function resolveAuthenticatedUserId(authStrategy: XAuthMethod) {
+async function resolveAuthenticatedUserId(
+  authStrategy: XAuthMethod,
+  authContext?: XClientScope,
+) {
   const result = await performXRequest({
     authStrategy,
     endpointLabel: "Resolve authenticated user",
     path: "/2/users/me",
+    authContext,
   });
 
   if (!result.ok) {
@@ -393,7 +397,7 @@ async function executeLiveRequest<T>(input: {
 
   const context = { userId: null as string | null };
   if (input.requireUserContext !== false) {
-    const me = await resolveAuthenticatedUserId(authStrategy);
+    const me = await resolveAuthenticatedUserId(authStrategy, input.authContext);
     if (!me.ok) {
       return formatResult<T>({
         ok: false,

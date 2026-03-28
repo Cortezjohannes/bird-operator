@@ -4,6 +4,7 @@ import { getConsoleRuntime } from "@/src/features/console/server/runtime";
 import { getAuthSetupState } from "@/src/features/auth/server/config";
 import { getPersistenceStatus } from "@/src/features/operator-store/server/store";
 import {
+  getConnectionState,
   getCurrentConnectedXAccountSummary,
   getDetectedAuthMethodsForCurrentUser,
   getTokenHealthForCurrentUser,
@@ -33,6 +34,10 @@ export async function getAuthStatus(): Promise<AuthStatusPayload> {
     requestedMode: runtime.requestedMode,
     isLiveReady: runtime.isLiveReady,
     hasPartialLiveConfig: runtime.hasPartialLiveConfig,
+    connectionState: getConnectionState({
+      account: connectedAccount,
+      tokenHealth,
+    }),
     detectedAuthMethods,
     liveProbeSummary:
       runtime.mode === "live"
