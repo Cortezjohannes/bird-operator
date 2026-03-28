@@ -3,8 +3,9 @@ import "server-only";
 import { capabilityAuthPreference, capabilityOrder } from "@/src/features/x-auth/capabilities";
 import { recordActionLog } from "@/src/features/logs/server/service";
 import {
+  getDetectedAuthMethods,
   getCurrentConnectedXAccountSummary,
-  getDetectedAuthMethodsForCurrentUser,
+  getScopedConnectedXAccountSummary,
 } from "@/src/features/x-auth/server/connected-account";
 import type {
   CapabilityTestResult,
@@ -35,6 +36,12 @@ import type {
 interface CachedCapabilityResults {
   key: string;
   results: CapabilityTestResult[];
+}
+
+interface XClientScope {
+  appUserId?: string | null;
+  expectedXUserId?: string | null;
+  strictLive?: boolean;
 }
 
 declare global {
@@ -140,8 +147,8 @@ function extractData<T>(body: unknown, fallback: T): T {
   return fallback;
 }
 
-async function getConfiguredLiveStrategies() {
-  return (await getDetectedAuthMethodsForCurrentUser())
+async function getConfiguredLiveStrategies(scope?: XClientScope) {
+  return (await getDetectedAuthMethods(scope))
     .filter((method) => method.canBeUsedForLiveTests)
     .map((method) => method.key);
 }
@@ -149,8 +156,9 @@ async function getConfiguredLiveStrategies() {
 async function chooseAuthStrategy(
   capability: XCapability,
   preferred?: XAuthMethod,
+  scope?: XClientScope,
 ): Promise<XAuthMethod> {
-  const available = new Set(await getConfiguredLiveStrategies());
+  const available = new Set(await getConfiguredLiveStrategies(scope));
 
   if (preferred && available.has(preferred)) {
     return preferred;
@@ -212,10 +220,12 @@ async function executeLiveRequest<T>(input: {
   targetId?: string | null;
   payloadSummary?: string;
   relatedTweetId?: string | null;
+  authContext?: XClientScope;
 }) {
   const authStrategy = await chooseAuthStrategy(
     input.capability,
     input.preferredAuthStrategy,
+    input.authContext,
   );
 
   if (authStrategy === "none") {
@@ -266,6 +276,7 @@ async function executeLiveRequest<T>(input: {
     method: input.method,
     query: input.query,
     body: input.body,
+    authContext: input.authContext,
   });
 
   if (!response.ok) {
@@ -534,10 +545,17 @@ function createDemoClient(): XClient {
   };
 }
 
-function createLiveClient(): XClient {
+function createLiveClient(scope?: XClientScope): XClient {
+  const executeScopedLiveRequest = <T>(input: Parameters<typeof executeLiveRequest<T>>[0]) => {
+    return executeLiveRequest<T>({
+      ...input,
+      authContext: scope,
+    });
+  };
+
   return {
     async getTimeline() {
-      return executeLiveRequest<XTimelineEntry[]>({
+      return executeScopedLiveRequest<XTimelineEntry[]>({
         capability: "read_timeline",
         operation: "getTimeline",
         endpointLabel: "Get timeline",
@@ -579,7 +597,7 @@ function createLiveClient(): XClient {
       });
     },
     async getMentions() {
-      return executeLiveRequest<XTimelineEntry[]>({
+      return executeScopedLiveRequest<XTimelineEntry[]>({
         capability: "read_mentions",
         operation: "getMentions",
         endpointLabel: "Get mentions",
@@ -620,7 +638,7 @@ function createLiveClient(): XClient {
       });
     },
     async getUser(handle) {
-      return executeLiveRequest<XUserSummary>({
+      return executeScopedLiveRequest<XUserSummary>({
         capability: "analytics_read",
         operation: "getUser",
         endpointLabel: "Get user by handle",
@@ -649,7 +667,7 @@ function createLiveClient(): XClient {
       });
     },
     async createPost(text, media) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "post_tweet",
         operation: "createPost",
         endpointLabel: "Create post",
@@ -672,7 +690,7 @@ function createLiveClient(): XClient {
       });
     },
     async createReply(tweetId, text) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "reply_tweet",
         operation: "createReply",
         endpointLabel: "Create reply",
@@ -694,7 +712,7 @@ function createLiveClient(): XClient {
       });
     },
     async createQuote(tweetId, text) {
-      return executeLiveRequest<XPostRecord>({
+      return executeScopedLiveRequest<XPostRecord>({
         capability: "quote_tweet",
         operation: "createQuote",
         endpointLabel: "Create quote post",
@@ -716,7 +734,7 @@ function createLiveClient(): XClient {
       });
     },
     async likeTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "like_tweet",
         operation: "likeTweet",
         endpointLabel: "Like tweet",
@@ -731,7 +749,7 @@ function createLiveClient(): XClient {
       });
     },
     async repostTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "repost_tweet",
         operation: "repostTweet",
         endpointLabel: "Repost tweet",
@@ -746,7 +764,7 @@ function createLiveClient(): XClient {
       });
     },
     async bookmarkTweet(tweetId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "bookmark_tweet",
         operation: "bookmarkTweet",
         endpointLabel: "Bookmark tweet",
@@ -761,7 +779,7 @@ function createLiveClient(): XClient {
       });
     },
     async followUser(userId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "follow_user",
         operation: "followUser",
         endpointLabel: "Follow user",
@@ -776,7 +794,7 @@ function createLiveClient(): XClient {
       });
     },
     async unfollowUser(userId) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "unfollow_user",
         operation: "unfollowUser",
         endpointLabel: "Unfollow user",
@@ -790,7 +808,7 @@ function createLiveClient(): XClient {
       });
     },
     async updateProfileText(input) {
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "update_profile_text",
         operation: "updateProfileText",
         endpointLabel: "Update profile text",
@@ -815,6 +833,7 @@ function createLiveClient(): XClient {
       const authStrategy = await chooseAuthStrategy(
         "update_profile_media",
         "oauth1",
+        scope,
       );
       const hasMedia = Boolean(input.avatarMediaId || input.bannerMediaId);
       if (!hasMedia) {
@@ -838,7 +857,7 @@ function createLiveClient(): XClient {
       }
 
       if (input.avatarMediaId) {
-        return executeLiveRequest({
+        return executeScopedLiveRequest({
           capability: "update_profile_media",
           operation: "updateProfileMedia",
           endpointLabel: "Update profile image",
@@ -853,7 +872,7 @@ function createLiveClient(): XClient {
         });
       }
 
-      return executeLiveRequest({
+      return executeScopedLiveRequest({
         capability: "update_profile_media",
         operation: "updateProfileMedia",
         endpointLabel: "Update profile banner",
@@ -875,7 +894,7 @@ function createLiveClient(): XClient {
         operation: "getCapabilities",
         endpointLabel: "Capability matrix",
         status: 200,
-        data: await runCapabilityTests(options),
+        data: await runCapabilityTests({ ...options, scope }),
         message: "Returned live capability results.",
       });
     },
@@ -914,11 +933,15 @@ function createCapabilityResult(
   };
 }
 
-async function getCacheKey() {
-  const detected = await getDetectedAuthMethodsForCurrentUser();
-  const account = await getCurrentConnectedXAccountSummary();
+async function getCacheKey(scope?: XClientScope) {
+  const detected = await getDetectedAuthMethods(scope);
+  const account = scope
+    ? await getScopedConnectedXAccountSummary(scope)
+    : await getCurrentConnectedXAccountSummary();
   return JSON.stringify({
     requestedMode: process.env.X_OPERATOR_CONSOLE_MODE || "demo",
+    appUserId: scope?.appUserId || null,
+    expectedXUserId: scope?.expectedXUserId || null,
     methods: detected.map((method) => ({
       key: method.key,
       configured: method.configured,
@@ -930,8 +953,11 @@ async function getCacheKey() {
   });
 }
 
-export async function runCapabilityTests(options?: { force?: boolean }) {
-  const cacheKey = await getCacheKey();
+export async function runCapabilityTests(options?: {
+  force?: boolean;
+  scope?: XClientScope;
+}) {
+  const cacheKey = await getCacheKey(options?.scope);
 
   if (
     !options?.force &&
@@ -941,7 +967,7 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
     return globalThis.__xOperatorCapabilityCache.results;
   }
 
-  const client = await createXClient();
+  const client = await createXClient(options?.scope);
   const results = await Promise.all(
     capabilityOrder.map(async (capability) => {
       switch (capability) {
@@ -1007,7 +1033,10 @@ export async function runCapabilityTests(options?: { force?: boolean }) {
   return results;
 }
 
-export async function createXClient(): Promise<XClient> {
-  const runtime = await getConsoleRuntime();
-  return runtime.mode === "live" ? createLiveClient() : createDemoClient();
+export async function createXClient(scope?: XClientScope): Promise<XClient> {
+  const runtime = await getConsoleRuntime(scope);
+  const shouldUseLiveClient =
+    runtime.mode === "live" ||
+    Boolean(scope?.strictLive && runtime.requestedMode === "live");
+  return shouldUseLiveClient ? createLiveClient(scope) : createDemoClient();
 }

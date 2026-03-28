@@ -190,11 +190,18 @@ async function executeFallbackPlaceholder<T>(
 export async function executeAction<TAction extends ExecutionActionType>(
   action: TAction,
   payload: ExecutionPayloadMap[TAction],
+  options?: {
+    xScope?: {
+      appUserId?: string | null;
+      expectedXUserId?: string | null;
+      strictLive?: boolean;
+    };
+  },
 ): Promise<NormalizedActionResult<
   ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
 >> {
   const settings = await getExecutionSettings();
-  const client = await createXClient();
+  const client = await createXClient(options?.xScope);
   const apiResult = (await executeApiAction(client, action, payload)) as XServiceResult<
     ExecutionResponseMap[TAction] extends XServiceResult<infer T> ? T : never
   >;

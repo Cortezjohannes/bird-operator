@@ -85,17 +85,38 @@ function summarizeAccount(record: StoredConnectedXAccount): ConnectedXAccountSum
   };
 }
 
+interface ConnectedAccountLookupOptions {
+  appUserId?: string | null;
+  expectedXUserId?: string | null;
+}
+
 export async function getCurrentAppUserId() {
   const session = await requireCurrentOwnerSession().catch(() => null);
   return session?.user.id || null;
 }
 
-export async function getCurrentConnectedXAccount() {
-  const userId = await getCurrentAppUserId();
+export async function getScopedConnectedXAccount(
+  options?: ConnectedAccountLookupOptions,
+) {
+  const userId = options?.appUserId || (await getCurrentAppUserId());
   if (!userId) {
     return null;
   }
-  return getConnectedXAccount(userId);
+
+  const account = await getConnectedXAccount(userId);
+  if (!account) {
+    return null;
+  }
+
+  if (options?.expectedXUserId && account.xUserId !== options.expectedXUserId) {
+    return null;
+  }
+
+  return account;
+}
+
+export async function getCurrentConnectedXAccount() {
+  return getScopedConnectedXAccount();
 }
 
 export async function getCurrentConnectedXAccountSummary() {
@@ -103,8 +124,36 @@ export async function getCurrentConnectedXAccountSummary() {
   return account ? summarizeAccount(account) : null;
 }
 
+export async function getScopedConnectedXAccountSummary(
+  options?: ConnectedAccountLookupOptions,
+) {
+  const account = await getScopedConnectedXAccount(options);
+  return account ? summarizeAccount(account) : null;
+}
+
 export async function getStoredOAuth2TokenSetForCurrentUser() {
   const account = await getCurrentConnectedXAccount();
+  if (!account) {
+    return null;
+  }
+
+  const bundle = decryptOAuth2TokenBundle(account.tokenEnvelope);
+  if (!bundle) {
+    return null;
+  }
+
+  return {
+    accessToken: bundle.accessToken,
+    refreshToken: bundle.refreshToken,
+    expiresAt: bundle.expiresAt,
+    scopes: bundle.scopes,
+  };
+}
+
+export async function getStoredOAuth2TokenSetForScope(
+  options?: ConnectedAccountLookupOptions,
+) {
+  const account = await getScopedConnectedXAccount(options);
   if (!account) {
     return null;
   }
@@ -186,8 +235,10 @@ export async function disconnectCurrentXAccount() {
   return deleteConnectedXAccount(userId);
 }
 
-export async function getDetectedAuthMethodsForCurrentUser(): Promise<DetectedAuthMethod[]> {
-  const connectedBundle = await getStoredOAuth2TokenSetForCurrentUser();
+export async function getDetectedAuthMethods(
+  options?: ConnectedAccountLookupOptions,
+): Promise<DetectedAuthMethod[]> {
+  const connectedBundle = await getStoredOAuth2TokenSetForScope(options);
   const oauthConfig = getXOAuthClientConfig();
 
   return [
@@ -240,6 +291,10 @@ export async function getDetectedAuthMethodsForCurrentUser(): Promise<DetectedAu
       summary: "OAuth client credentials for hosted web-app connect flow.",
     },
   ];
+}
+
+export async function getDetectedAuthMethodsForCurrentUser(): Promise<DetectedAuthMethod[]> {
+  return getDetectedAuthMethods();
 }
 
 export async function getTokenHealthForCurrentUser() {
