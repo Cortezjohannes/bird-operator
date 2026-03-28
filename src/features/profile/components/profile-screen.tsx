@@ -205,16 +205,16 @@ export function ProfileScreen({
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="grid gap-2 text-sm text-slate-300">
                 <span>Profile image asset ref</span>
-                <input value={avatarAssetRef} onChange={(event) => setAvatarAssetRef(event.target.value)} className="rounded-2xl border border-white/8 bg-panel-strong/85 px-3 py-2 text-slate-100 outline-none" placeholder="placeholder media id or local asset ref" />
+                <input value={avatarAssetRef} onChange={(event) => setAvatarAssetRef(event.target.value)} className="rounded-2xl border border-white/8 bg-panel-strong/85 px-3 py-2 text-slate-100 outline-none" placeholder="existing uploaded media id" />
               </label>
               <label className="grid gap-2 text-sm text-slate-300">
                 <span>Banner image asset ref</span>
-                <input value={bannerAssetRef} onChange={(event) => setBannerAssetRef(event.target.value)} className="rounded-2xl border border-white/8 bg-panel-strong/85 px-3 py-2 text-slate-100 outline-none" placeholder="placeholder media id or local asset ref" />
+                <input value={bannerAssetRef} onChange={(event) => setBannerAssetRef(event.target.value)} className="rounded-2xl border border-white/8 bg-panel-strong/85 px-3 py-2 text-slate-100 outline-none" placeholder="existing uploaded media id" />
               </label>
             </div>
 
             <div className="mt-3 rounded-2xl border border-white/8 bg-panel-strong/85 p-3 text-xs leading-6 text-slate-400">
-              Image upload workflow is placeholder-only in this phase. Sensitive local assets should remain ignored and never committed.
+              Provide an existing media id for avatar or banner updates. Sensitive local assets should remain ignored and never committed.
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">

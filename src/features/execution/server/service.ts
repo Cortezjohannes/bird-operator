@@ -23,9 +23,9 @@ function getFallbackStatus(enabled: boolean): ExecutionStatusPanel {
   return {
     enabled,
     available: false,
-    provider: "placeholder",
+    provider: "fallback_interface",
     headline: enabled
-      ? "Browser fallback is armed but not installed."
+      ? "Browser fallback is enabled but not installed."
       : "Browser fallback is disabled.",
     detail:
       "This repo exposes a server-only fallback interface and status plumbing, but it does not ship any browser session, cookies, or Playwright automation.",
@@ -59,7 +59,7 @@ export async function setExecutionSettings(input: {
     authMethod: "system",
     fallbackAvailable: false,
     fallbackAttempted: false,
-    fallbackResult: settings.browserFallbackEnabled ? "placeholder" : "not_attempted",
+    fallbackResult: settings.browserFallbackEnabled ? "not_available" : "not_attempted",
   });
 
   return {
@@ -172,13 +172,13 @@ async function executeFallbackPlaceholder<T>(
     attempted: enabled && apiResult.mode === "live" && !apiResult.ok,
     result:
       enabled && apiResult.mode === "live" && !apiResult.ok
-        ? "placeholder"
+        ? "not_available"
         : enabled
           ? "not_attempted"
           : "not_available",
     message:
       enabled && apiResult.mode === "live" && !apiResult.ok
-        ? "Browser fallback was enabled, but only a placeholder executor is installed."
+        ? "Browser fallback was enabled, but no installed fallback executor is available."
         : enabled
           ? "Browser fallback is available in settings but was not needed for this action."
           : "Browser fallback is disabled.",
@@ -242,6 +242,6 @@ export async function logExecutionOutcome(input: {
 
 export function liveExecutionAllowed() {
   return getConsoleRuntime().then((runtime) => {
-    return runtime.mode === "demo" || runtime.isLiveReady;
+    return runtime.isLiveReady;
   });
 }

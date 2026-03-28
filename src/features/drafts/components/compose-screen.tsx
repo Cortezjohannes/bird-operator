@@ -304,7 +304,7 @@ export function ComposeScreen() {
                 Save as scheduled
               </button>
             </div>
-            <p className="mt-3 text-xs text-slate-500">{pending ? "Processing operator action..." : "Drafts are persisted locally and safe for demo mode."}</p>
+            <p className="mt-3 text-xs text-slate-500">{pending ? "Processing operator action..." : "Drafts are persisted locally until they are approved or posted."}</p>
           </div>
 
           <div className="space-y-4">

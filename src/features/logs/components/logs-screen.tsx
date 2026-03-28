@@ -100,7 +100,11 @@ export function LogsScreen({
         </section>
 
         <section className="space-y-3">
-          {filtered.map((log) => (
+          {filtered.length === 0 ? (
+            <article className="rounded-3xl border border-white/8 bg-panel/95 p-6 text-sm text-slate-400">
+              No persisted runtime logs are available yet.
+            </article>
+          ) : filtered.map((log) => (
             <article key={log.id} className="rounded-3xl border border-white/8 bg-panel/95 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
